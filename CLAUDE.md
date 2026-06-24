@@ -1,6 +1,7 @@
 # Robo67 — CLAUDE.md
 
 EE26 Hackathon. Franka Emika Panda arm. **Challenge 1 (peg-in-hole insertion) only.**
+**We will NOT use 5. Intel acceleration — bonus points** its buggy and we rather prefer other methods.
 Full challenge doc, hardware credentials, and stack reference: [`docs/CHALLENGE.md`](docs/CHALLENGE.md)
 
 **Branch:** `jearningers` — all commits go here, never `main`. If you use a worktree or branch branch from `jearningers` and back onto `jearningers`
