@@ -1,0 +1,14 @@
+  /grill-with-docs I have the following Challenge 1: [Pasted text #1 +17 lines]. In the assets you can see our setup.
+  We have the Franka
+  Emika robot arm and two cameras. How should we approach this to implement all of this. Lets get all the sources and
+  docs. I already
+   cloned their Panda repo under cd .. and then in Hackathons. I have 0 previous experience in robotics only software.
+  so lets work through
+  all of this use your tools and whatever I want all sources collected. And then plan and grill with you on how we
+  approach this
+   challenge front to end. I already collected some documentation but you can use more. and also you can just
+  restructure evrything in docs thats better suited. But lets try to figure this out step by step and discuss a plan
+  on how we want to tackle this problem. I thought about 1. Extrinsic parameters 2 cameras classic cv to get back a 3d
+  space (would be cool to visualie it aswell) . then 2nd object segmentation or recognition and then use these 3d
+  world coordinations for our arm. 3rd arm does the work. But lets discuss this maybe you have better ideas but lets
+  do research first. and use the doc. About step 3 how would we "train" our arm so it does the proper 3d world manouvering? I would have access to an rtx 5090 through aws. (should be noted somewhere in the notion docs.)

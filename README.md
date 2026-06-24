@@ -9,6 +9,12 @@ Das Ziel: klassische Bild- und Kraftregelung. Keine neuronalen Netze. Kein Leide
 
 ---
 
+## Notion:
+
+link: https://munichstart.notion.site/EE26-Hacker-Handbook-37e768068632809f9b84df427a5ca8c7
+
+---
+
 ## Die Aufgabe
 
 **Challenge 1 — Stift-in-Loch-Insertion**
