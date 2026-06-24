@@ -1,74 +1,74 @@
 # Robo67
 
-**EE26 Hackathon, Munich, June 2026.**
-45 hours to teach a robot arm to insert a peg into a hole.
-Yes, we know. The jokes write themselves. We've heard them all.
+**EE26 Hackathon, München, Juni 2026.**
+45 Stunden, um einem Roboterarm beizubringen, einen Stift in ein Loch zu stecken.
+Ja, wir wissen es. Die Witze schreiben sich von selbst. Wir haben sie alle schon gehört.
 
-We are Team 67. We have a Franka Panda, two webcams zip-tied to desk lamps, and a dangerous amount of caffeine.
-The goal: classical vision + force control. No neural networks. No suffering. (Some suffering.)
-
----
-
-## The Challenge
-
-**Challenge 1 — Peg-in-Hole Insertion**
-Detect a socket with a camera, align the arm above it, push a peg in with compliant force control.
-If it works: glory. If it doesn't: spiral search. If that doesn't work: check the Eigen version.
-
-The robot is a Franka Emika Panda (`192.168.1.67/desk/`).
-The controller stack is [`multipanda_ros2`](https://github.com/tenfoldpaper/multipanda_ros2).
-The branch is `jearningers`. Main is for people with time.
+Wir sind Team 67. Wir haben einen Franka Panda, zwei Webcams an Tischlampen festgeklebt, und eine gefährliche Menge Koffein.
+Das Ziel: klassische Bild- und Kraftregelung. Keine neuronalen Netze. Kein Leiden. (Etwas Leiden.)
 
 ---
 
-## Docs
+## Die Aufgabe
+
+**Challenge 1 — Stift-in-Loch-Insertion**
+Socket mit der Kamera erkennen, Arm darüber ausrichten, Stift mit nachgiebiger Kraftregelung einführen.
+Wenn es klappt: Ruhm. Wenn nicht: Spiralsuche. Wenn das auch nicht klappt: Eigen-Version prüfen.
+
+Der Roboter ist ein Franka Emika Panda (`192.168.1.67/desk/`).
+Der Controller-Stack ist [`multipanda_ros2`](https://github.com/tenfoldpaper/multipanda_ros2).
+Der Branch heißt `jearningers`. Main ist für Leute mit Zeit.
+
+---
+
+## Dokumentation
 
 ```
 docs/
-  cameras.md                   # two overhead webcams and why the C920 needs a manual exposure fix
+  cameras.md                   # zwei Overhead-Webcams und warum die C920 manuelle Belichtung braucht
   franka/
-    specs.md                   # joint limits, Cartesian limits, don't exceed them
-    fci_overview.md            # 1 kHz FCI architecture, exclusive Desk/FCI rule
-    bringup_api.md             # ros2 launch incantations and service names
+    specs.md                   # Gelenkgrenzen, kartesische Grenzen, nicht überschreiten
+    fci_overview.md            # 1-kHz-FCI-Architektur, exklusives Desk/FCI-Gesetz
+    bringup_api.md             # ros2-launch-Beschwörungen und Service-Namen
   hackathon/
-    hacker_handbook.md         # schedule, locations, WiFi, food, sleep
-    intel_challenge.md         # full challenge brief, credentials, software stack, bonus points
+    hacker_handbook.md         # Zeitplan, Orte, WLAN, Essen, Schlafen
+    intel_challenge.md         # vollständiges Challenge-Briefing, Zugangsdaten, Software-Stack, Bonuspunkte
 ```
 
 ---
 
-## Quick Reference
+## Schnellreferenz
 
-| Thing | Value |
-|-------|-------|
-| Franka Desk | `https://192.168.1.67/desk/` — user `franka` / pass `frankaRSI` |
-| Black workstation | password `ee26` |
-| Intel workstation | password `H@ckathon2026` |
-| Controller topic | `/cartesian_impedance/pose_desired` — Float64MultiArray [px,py,pz, R00..R22] |
-| Error recovery | `ros2 service call ~/service_server/error_recovery std_srvs/srv/Trigger {}` |
-| Camera capture | `gst-launch-1.0 v4l2src device=/dev/video2 num-buffers=1 ! jpegenc ! filesink location=frame.jpg` |
-| C920 exposure fix | `v4l2-ctl -d /dev/video2 --set-ctrl=auto_exposure=1,exposure_time_absolute=150` |
+| Ding | Wert |
+|------|------|
+| Franka Desk | `https://192.168.1.67/desk/` — Benutzer `franka` / Passwort `frankaRSI` |
+| Schwarze Workstation | Passwort `ee26` |
+| Intel Workstation | Passwort `H@ckathon2026` |
+| Controller-Topic | `/cartesian_impedance/pose_desired` — Float64MultiArray [px,py,pz, R00..R22] |
+| Fehlerbehebung | `ros2 service call ~/service_server/error_recovery std_srvs/srv/Trigger {}` |
+| Kamera-Aufnahme | `gst-launch-1.0 v4l2src device=/dev/video2 num-buffers=1 ! jpegenc ! filesink location=frame.jpg` |
+| C920-Belichtungsfix | `v4l2-ctl -d /dev/video2 --set-ctrl=auto_exposure=1,exposure_time_absolute=150` |
 
 ---
 
-## Rules We Learned the Hard Way
+## Regeln, die wir auf die harte Tour gelernt haben
 
-- **Never use the joint-position controller.** Bad motor behavior. You will regret it.
-- **Eigen 3.3.9 only.** 3.4.0 breaks compilation. Don't ask.
-- **FCI and Desk cannot run at the same time.** One commander. Like a good kitchen.
-- **After a ControlException:** call `error_recovery`, don't reload the controller.
-- **Prototype in MuJoCo first.** The sim uses the same controller. Touch hardware last.
+- **Niemals den Gelenkpositions-Controller benutzen.** Schlechtes Motorverhalten. Man bereut es.
+- **Nur Eigen 3.3.9.** 3.4.0 zerstört die Kompilierung. Nicht fragen.
+- **FCI und Desk können nicht gleichzeitig laufen.** Ein Befehlshaber. Wie in einer guten Küche.
+- **Nach einer ControlException:** `error_recovery` aufrufen, Controller nicht neu laden.
+- **Erst in MuJoCo prototypen.** Die Simulation nutzt denselben Controller. Hardware zuletzt anfassen.
 
 ---
 
 ## Stack
 
 - ROS 2 Humble, Ubuntu 22.04
-- `multipanda_ros2` (branch `humble`) — Panda driver + identical MuJoCo sim
+- `multipanda_ros2` (Branch `humble`) — Panda-Treiber + identische MuJoCo-Simulation
 - `libfranka` 0.9.2, MuJoCo 3.2.0, Eigen **3.3.9**
-- Cartesian impedance controller for compliant contact
-- Two overhead webcams (`/dev/video0`, `/dev/video2`) — external only, no wrist mount
+- Kartesischer Impedanz-Controller für nachgiebigen Kontakt
+- Zwei Overhead-Webcams (`/dev/video0`, `/dev/video2`) — nur extern, keine Handgelenkmontage
 
 ---
 
-*Named after the robot's IP. We are not creative. We are engineers.*
+*Benannt nach der IP-Adresse des Roboters. Wir sind nicht kreativ. Wir sind Ingenieure.*
