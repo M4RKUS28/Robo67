@@ -39,15 +39,15 @@ docs/
 
 ## Schnellreferenz
 
-| Ding | Wert |
-|------|------|
-| Franka Desk | `https://192.168.1.67/desk/` — Benutzer `franka` / Passwort `frankaRSI` |
-| Schwarze Workstation | Passwort `ee26` |
-| Intel Workstation | Passwort `H@ckathon2026` |
-| Controller-Topic | `/cartesian_impedance/pose_desired` — Float64MultiArray [px,py,pz, R00..R22] |
-| Fehlerbehebung | `ros2 service call ~/service_server/error_recovery std_srvs/srv/Trigger {}` |
-| Kamera-Aufnahme | `gst-launch-1.0 v4l2src device=/dev/video2 num-buffers=1 ! jpegenc ! filesink location=frame.jpg` |
-| C920-Belichtungsfix | `v4l2-ctl -d /dev/video2 --set-ctrl=auto_exposure=1,exposure_time_absolute=150` |
+| Ding                 | Wert                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| Franka Desk          | `https://192.168.1.67/desk/` — Benutzer `franka` / Passwort `frankaRSI`                           |
+| Schwarze Workstation | Passwort `ee26`                                                                                   |
+| Intel Workstation    | Passwort `H@ckathon2026`                                                                          |
+| Controller-Topic     | `/cartesian_impedance/pose_desired` — Float64MultiArray [px,py,pz, R00..R22]                      |
+| Fehlerbehebung       | `ros2 service call ~/service_server/error_recovery std_srvs/srv/Trigger {}`                       |
+| Kamera-Aufnahme      | `gst-launch-1.0 v4l2src device=/dev/video2 num-buffers=1 ! jpegenc ! filesink location=frame.jpg` |
+| C920-Belichtungsfix  | `v4l2-ctl -d /dev/video2 --set-ctrl=auto_exposure=1,exposure_time_absolute=150`                   |
 
 ---
 
@@ -71,4 +71,4 @@ docs/
 
 ---
 
-*Benannt nach der IP-Adresse des Roboters. Wir sind nicht kreativ. Wir sind Ingenieure.*
+_Benannt nach der IP-Adresse des Roboters. Wir sind nicht kreativ. Wir sind Ingenieure._
