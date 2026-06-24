@@ -31,7 +31,7 @@ Der Branch heißt `jearningers`. Main ist für Leute mit Zeit.
 
 ```
 docs/
-  cameras.md                   # zwei Overhead-Webcams und warum die C920 manuelle Belichtung braucht
+  cameras.md                   # zwei Overhead-Webcams + Intel RealSense D405 Tiefenkamera, Geräte-Nodes, Belichtung
   franka/
     specs.md                   # Gelenkgrenzen, kartesische Grenzen, nicht überschreiten
     fci_overview.md            # 1-kHz-FCI-Architektur, exklusives Desk/FCI-Gesetz
@@ -52,8 +52,9 @@ docs/
 | Intel Workstation    | Passwort `H@ckathon2026`                                                                          |
 | Controller-Topic     | `/cartesian_impedance/pose_desired` — Float64MultiArray [px,py,pz, R00..R22]                      |
 | Fehlerbehebung       | `ros2 service call ~/service_server/error_recovery std_srvs/srv/Trigger {}`                       |
-| Kamera-Aufnahme      | `gst-launch-1.0 v4l2src device=/dev/video2 num-buffers=1 ! jpegenc ! filesink location=frame.jpg` |
-| C920-Belichtungsfix  | `v4l2-ctl -d /dev/video2 --set-ctrl=auto_exposure=1,exposure_time_absolute=150`                   |
+| Webcam-Aufnahme      | `gst-launch-1.0 v4l2src device=/dev/video8 num-buffers=1 ! jpegenc ! filesink location=frame.jpg` (C920) |
+| D405 Tiefenkamera    | Farbe live: `gst-launch-1.0 v4l2src device=/dev/video6 ! videoconvert ! autovideosink` — Tiefe: `realsense-viewer` |
+| C920-Belichtungsfix  | `v4l2-ctl -d /dev/video8 --set-ctrl=auto_exposure=1,exposure_time_absolute=150`                   |
 
 ---
 
@@ -73,7 +74,8 @@ docs/
 - `multipanda_ros2` (Branch `humble`) — Panda-Treiber + identische MuJoCo-Simulation
 - `libfranka` 0.9.2, MuJoCo 3.2.0, Eigen **3.3.9**
 - Kartesischer Impedanz-Controller für nachgiebigen Kontakt
-- Zwei Overhead-Webcams (`/dev/video0`, `/dev/video2`) — nur extern, keine Handgelenkmontage
+- Zwei Overhead-Webcams (`/dev/video0` Microdia, `/dev/video8` C920) — statisch, extern
+- Intel RealSense D405 Tiefenkamera (`/dev/video2` Tiefe, `/dev/video6` Farbe) — **am Arm montiert (eye-in-hand)**, bewegt sich mit dem Roboter; braucht Hand-Auge-Kalibrierung
 
 ---
 

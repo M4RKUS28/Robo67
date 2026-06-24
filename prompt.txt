@@ -1,6 +1,36 @@
-  /grill-with-docs I have the following Challenge 1: [Pasted text #1 +17 lines]. In the assets you can see our setup.
+  /grill-with-docs I have the following Challenge 1: 
+## Challenge 1 — Insertion (peg-in-hole)
+
+### Approaches
+
+**Vision + force (classical)**
+Detect socket pose (external webcam via AprilTag/known CAD, or the eye-in-hand D405 depth cam), align peg above it, then do compliant Cartesian-impedance insertion with a small search/spiral on contact while watching external wrench `O_F_ext`. Deterministic, no training, plays to the RT impedance controller's strengths.
+
+**VLA / imitation**
+Collect teleop demos, train ACT / SmolVLA / Pi0 in `physical-ai-studio`, deploy via OpenVINO. More general and variation-tolerant, earns the Intel bonus — but costs demo-collection and tuning time.
+
+**Hybrid**
+Learned coarse alignment + classical compliant insertion for the last centimetres.
+
+### Practical Tips
+
+- Prototype in **MuJoCo first** with the same controller — sim/real parity is the whole point of this stack.
+- Use **Cartesian impedance** and soften stiffness near contact so you don't fight the hole.
+- Set collision thresholds loose enough that reflexes don't trip during insertion, and rehearse `error_recovery`.
+- Calibrate camera→base extrinsics carefully; insertion is unforgiving of pose error.
+- Chamfered hole entries make a big difference if you control the print.
+. In the assets you can see our setup.
   We have the Franka
-  Emika robot arm and two cameras. How should we approach this to implement all of this. Lets get all the sources and
+  Emika robot arm and three cameras: two static external webcams (Microdia overhead, Logitech C920 overhead) and one Intel RealSense D405 depth camera mounted on the arm itself (eye-in-hand) for close-up RGB-D that tracks the end-effector. Grab a frame from each:
+
+  ```bash
+  gst-launch-1.0 v4l2src device=/dev/video0 num-buffers=1 ! jpegenc ! filesink location=cam_microdia.jpg   # Microdia webcam (overhead)
+  gst-launch-1.0 v4l2src device=/dev/video8 num-buffers=1 ! jpegenc ! filesink location=cam_c920.jpg       # Logitech C920 webcam (overhead)
+  gst-launch-1.0 v4l2src device=/dev/video6 num-buffers=1 ! jpegenc ! filesink location=cam_d405_color.jpg # RealSense D405 color (eye-in-hand)
+  # D405 depth is Z16 (not JPEG-encodable) — view depth / point cloud with realsense-viewer
+  ```
+
+  How should we approach this to implement all of this. Lets get all the sources and
   docs. I already
    cloned their Panda repo under cd .. and then in Hackathons. I have 0 previous experience in robotics only software.
   so lets work through
@@ -11,4 +41,9 @@
   on how we want to tackle this problem. I thought about 1. Extrinsic parameters 2 cameras classic cv to get back a 3d
   space (would be cool to visualie it aswell) . then 2nd object segmentation or recognition and then use these 3d
   world coordinations for our arm. 3rd arm does the work. But lets discuss this maybe you have better ideas but lets
-  do research first. and use the doc. About step 3 how would we "train" our arm so it does the proper 3d world manouvering? I would have access to an rtx 5090 through aws. (should be noted somewhere in the notion docs.)
+  do research first. and use the doc. But we also have the mounted pc so thats good aswell. About step 3 how would we "train" our arm so it does the proper 3d world manouvering? 
+  I would have access to an rtx 5090 through aws. (should be noted somewhere in the notion docs.) 
+  https://munichstart.notion.site/EE26-Hacker-Handbook-37e768068632809f9b84df427a5ca8c7
+  Just so you know Im a software engineer with expertise in deep learning and computer vision, 
+  reinforcement learning. I dont know much about robotics itself. Lets do a long grilling session I have time.
+ of course with documentation 
