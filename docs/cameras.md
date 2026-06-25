@@ -47,11 +47,15 @@ the capture nodes, the odd ones are metadata.
 No RealSense SDK is installed yet, so use GStreamer (already present):
 
 ```bash
-# Live color preview window
-gst-launch-1.0 v4l2src device=/dev/video6 ! videoconvert ! autovideosink
+# Live preview — any camera
+gst-launch-1.0 v4l2src device=/dev/video0 ! videoconvert ! autovideosink   # Microdia (overhead)
+gst-launch-1.0 v4l2src device=/dev/video8 ! videoconvert ! autovideosink   # C920 (overhead)
+gst-launch-1.0 v4l2src device=/dev/video6 ! videoconvert ! autovideosink   # D405 color (eye-in-hand)
 
-# Grab one color still
-gst-launch-1.0 v4l2src device=/dev/video6 num-buffers=1 ! jpegenc ! filesink location=rs_color.jpg
+# Grab one still — any camera
+gst-launch-1.0 v4l2src device=/dev/video0 num-buffers=1 ! jpegenc ! filesink location=cam0.jpg
+gst-launch-1.0 v4l2src device=/dev/video8 num-buffers=1 ! jpegenc ! filesink location=cam1.jpg
+gst-launch-1.0 v4l2src device=/dev/video6 num-buffers=1 ! jpegenc ! filesink location=cam_d405.jpg
 ```
 
 For depth + 3D point cloud, install the SDK and use the official viewer (run in
@@ -81,11 +85,12 @@ v4l2-ctl -d /dev/video8 --set-ctrl=auto_exposure=1,exposure_time_absolute=150
   depth.
 - **Webcams are autofocus — verify focus is sharp on the workspace surface**
   (where peg and socket sit), not on the robot arm above it.
-- Capture webcam frames with GStreamer (OpenCV / ffmpeg not installed):
+- Capture a still from all three cameras with GStreamer (OpenCV / ffmpeg not installed):
 
 ```bash
-gst-launch-1.0 v4l2src device=/dev/video0 num-buffers=1 ! jpegenc ! filesink location=cam0.jpg   # Microdia
-gst-launch-1.0 v4l2src device=/dev/video8 num-buffers=1 ! jpegenc ! filesink location=cam2.jpg   # C920
+gst-launch-1.0 v4l2src device=/dev/video0 num-buffers=1 ! jpegenc ! filesink location=cam0.jpg          # Microdia (overhead)
+gst-launch-1.0 v4l2src device=/dev/video8 num-buffers=1 ! jpegenc ! filesink location=cam1.jpg          # C920 (overhead)
+gst-launch-1.0 v4l2src device=/dev/video6 num-buffers=1 ! jpegenc ! filesink location=cam_d405.jpg      # D405 color (eye-in-hand)
 ```
 
 ## Photos

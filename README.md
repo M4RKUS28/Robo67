@@ -52,8 +52,9 @@ docs/
 | Intel Workstation    | Passwort `H@ckathon2026`                                                                          |
 | Controller-Topic     | `/cartesian_impedance/pose_desired` — Float64MultiArray [px,py,pz, R00..R22]                      |
 | Fehlerbehebung       | `ros2 service call ~/service_server/error_recovery std_srvs/srv/Trigger {}`                       |
-| Webcam-Aufnahme      | `gst-launch-1.0 v4l2src device=/dev/video8 num-buffers=1 ! jpegenc ! filesink location=frame.jpg` (C920) |
-| D405 Tiefenkamera    | Farbe live: `gst-launch-1.0 v4l2src device=/dev/video6 ! videoconvert ! autovideosink` — Tiefe: `realsense-viewer` |
+| Webcam-Aufnahme      | `gst-launch-1.0 v4l2src device=/dev/video0 num-buffers=1 ! jpegenc ! filesink location=cam0.jpg` (Microdia) · `device=/dev/video8 … cam1.jpg` (C920) |
+| D405 Farbbild        | `gst-launch-1.0 v4l2src device=/dev/video6 num-buffers=1 ! jpegenc ! filesink location=cam_d405.jpg` |
+| D405 Live-Vorschau   | `gst-launch-1.0 v4l2src device=/dev/video6 ! videoconvert ! autovideosink` · Tiefe: `realsense-viewer` |
 | C920-Belichtungsfix  | `v4l2-ctl -d /dev/video8 --set-ctrl=auto_exposure=1,exposure_time_absolute=150`                   |
 
 ---
