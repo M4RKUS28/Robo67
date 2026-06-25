@@ -31,6 +31,9 @@ Verify the math with NO robot and NO ROS at all:
      python3 fun/robot_dance.py --selftest
 
 Useful flags:
+  --routine spin      the big "breakdance": spin around the base, stand up
+                      vertically, then spin the flange/"hand" on top
+                      (default is "dance" -- the gentle wiggle above)
   --amp-scale 0.5     make every motion smaller (gentler)
   --time-scale 1.5    make everything slower
   --v-max 0.25        lower the hard linear speed cap (m/s)
@@ -39,6 +42,24 @@ Useful flags:
   --assume-home       run without reading state (assumes arm is already at the
                       default anchor pose -- only use if you know it is!)
 ------------------------------------------------------------------------------
+THE "spin" ROUTINE (--routine spin)
+
+Expresses a spin-around / stand-tall / spin-the-hand breakdance purely through
+the *Cartesian impedance* controller (we never touch the joint-position
+controller -- it has known bad motor behaviour):
+
+  * "spin around"  -> the end-effector orbits the base z-axis, which IS joint 1
+                      rotating. NOTE: a real Panda CANNOT do a full 360 -- joint
+                      1 is limited to +/-166 deg -- so the "spin" is the widest
+                      safe back-and-forth sweep, not a continuous turn.
+  * "stand up"     -> the arm rises to a tall, near-vertical pose.
+  * "spin hands"   -> at the top, the flange ("the hand") yaw spins back and
+                      forth (again capped by joint 7's +/-166 deg range).
+
+Unlike the gentle dance it commands *absolute* base-frame poses (so it can swing
+far from the start), but a dedicated SpinLimiter still enforces the reachable
+sphere, a table floor, the px/R22 controller quirks, and hard speed caps. It
+ramps smoothly from wherever the arm currently is. Prototype in MuJoCo first.
 """
 
 import argparse
@@ -232,6 +253,99 @@ def total_duration(time_scale=1.0):
 
 
 # ----------------------------------------------------------------------------
+# The "spin" breakdance (--routine spin).
+#
+# This one speaks in *absolute* base-frame poses (px, py, pz) + base-frame
+# (roll, pitch, yaw), NOT small offsets around an anchor -- so it can swing the
+# arm right around the base. Each segment is built to be position- and
+# orientation-continuous at the seams, and the whole thing is fed through the
+# SpinLimiter (below) which still enforces reach / floor / speed caps.
+#
+# Reality check: a Franka Panda CANNOT spin a joint a full 360 deg. Joint 1 is
+# +/-166 deg and joint 7 (the flange / "hand") is +/-166 deg, so every "spin"
+# here is the widest safe back-and-forth SWEEP, not a continuous turn. We stay
+# comfortably inside those limits.
+# ----------------------------------------------------------------------------
+
+ORBIT_R = 0.38        # orbit radius about the base z-axis (m)
+ORBIT_H = 0.35        # orbit height above the base (m)
+TALL_PX = 0.12        # x of the tall "standing" pose (kept > 0 for px quirk)
+TALL_Z = 0.62         # z of the tall "standing" pose (m)
+AZIM_MAX = 2.5        # base-spin sweep amplitude (rad) -- < joint-1 limit 2.8973
+HAND_YAW_MAX = 2.5    # flange-spin sweep amplitude (rad) -- < joint-7 limit 2.8973
+SPIN_HOME_P = (0.40, 0.0, 0.45)   # safe pose to settle back to at the end
+
+
+def _lerp(a, b, s):
+    return a + (b - a) * s
+
+
+def _sp_ready(t, dur):
+    # Hold at the orbit start (tool pointing down). The SpinLimiter ramps the
+    # arm here from wherever it actually is, so this segment absorbs the approach.
+    return (ORBIT_R, 0.0, ORBIT_H), (math.pi, 0.0, 0.0)
+
+
+def _sp_spin(t, dur):
+    # Orbit the base z-axis: azimuth 0 -> +max -> 0 -> -max -> 0 over the segment
+    # (one full period, so it ends exactly where it started -> continuous seam).
+    f = 1.0 / dur
+    az = AZIM_MAX * math.sin(2 * math.pi * f * t)
+    return (ORBIT_R * math.cos(az), ORBIT_R * math.sin(az), ORBIT_H), \
+           (math.pi, 0.0, az)
+
+
+def _sp_standup(t, dur):
+    # Rise from the orbit pose to the tall, near-vertical pose; roll pi -> 0
+    # rolls the tool from pointing-down to pointing-up as it stands.
+    s = smoothstep(t / dur)
+    return (_lerp(ORBIT_R, TALL_PX, s), 0.0, _lerp(ORBIT_H, TALL_Z, s)), \
+           (_lerp(math.pi, 0.0, s), 0.0, 0.0)
+
+
+def _sp_hands(t, dur):
+    # Stand tall and spin the flange ("the hand"): yaw 0 -> +max -> 0 -> -max -> 0.
+    f = 1.0 / dur
+    yaw = HAND_YAW_MAX * math.sin(2 * math.pi * f * t)
+    return (TALL_PX, 0.0, TALL_Z), (0.0, 0.0, yaw)
+
+
+def _sp_return(t, dur):
+    # Ease from the tall pose back to a safe home, tool rolling back down.
+    s = smoothstep(t / dur)
+    return (_lerp(TALL_PX, SPIN_HOME_P[0], s), 0.0, _lerp(TALL_Z, SPIN_HOME_P[2], s)), \
+           (_lerp(0.0, math.pi, s), 0.0, 0.0)
+
+
+SPIN_SEGMENTS = [
+    ("ready",        5.0, _sp_ready),
+    ("spin around", 16.0, _sp_spin),
+    ("stand up",     6.0, _sp_standup),
+    ("spin hands",  12.0, _sp_hands),
+    ("return home",  6.0, _sp_return),
+]
+
+
+def spin_choreography(t, time_scale=1.0, amp_scale=1.0):
+    """Return (name, (px,py,pz), (roll,pitch,yaw)) -- ABSOLUTE base-frame pose --
+    at elapsed time t, or None once the routine is finished. amp_scale is accepted
+    for signature parity with choreography() but is intentionally ignored here:
+    the spin's amplitudes are pinned to stay inside the joint limits."""
+    elapsed = 0.0
+    for name, dur, fn in SPIN_SEGMENTS:
+        d = dur * time_scale
+        if t < elapsed + d:
+            p, rpy = fn(t - elapsed, d)
+            return name, p, rpy
+        elapsed += d
+    return None
+
+
+def spin_total_duration(time_scale=1.0):
+    return sum(dur for _, dur, _ in SPIN_SEGMENTS) * time_scale
+
+
+# ----------------------------------------------------------------------------
 # Safety: turn an offset into a clamped absolute target. This is the layer that
 # guarantees the arm only ever moves gently, regardless of the choreography.
 # ----------------------------------------------------------------------------
@@ -313,6 +427,88 @@ class SafetyLimiter:
         return data, r
 
 
+def rpy_from_R(R):
+    """Recover (roll, pitch, yaw) from R = Rz(yaw) @ Ry(pitch) @ Rx(roll) (ZYX).
+    Used to seed the SpinLimiter from the arm's current orientation so the very
+    first command doesn't snap the wrist."""
+    pitch = math.atan2(-R[2][0], math.sqrt(R[0][0] ** 2 + R[1][0] ** 2))
+    roll = math.atan2(R[2][1], R[2][2])
+    yaw = math.atan2(R[1][0], R[0][0])
+    return [roll, pitch, yaw]
+
+
+class SpinLimiter:
+    """Absolute-pose safety clamp for the big 'spin' routine.
+
+    SafetyLimiter keeps the EE inside a small box around an anchor; that is too
+    tight for a spin-around-the-base move. This limiter instead accepts ABSOLUTE
+    base-frame targets so the arm can swing far -- but it still guarantees the
+    arm stays reachable, above the table, inside the px/R22 controller quirks,
+    and under hard linear/angular speed caps. Seed prev_p/prev_rpy with the
+    arm's current pose so motion ramps in from where it actually is."""
+
+    Z_FLOOR = 0.10        # never dive below this base-frame z (m)
+    R_MIN = 0.12          # keep at least this far from the base origin (m)
+    R_MAX = 0.80          # reachable radius from the base origin (m)
+
+    def __init__(self, v_max=0.4, w_max=2.0, rate=100.0,
+                 start_p=None, start_rpy=None):
+        self.lin_step = v_max / rate           # max metres per tick (Euclidean)
+        self.ang_step = w_max / rate           # max radians per tick (per axis)
+        self.prev_p = list(start_p) if start_p is not None else None
+        self.prev_rpy = list(start_rpy) if start_rpy is not None else None
+
+    def _clamp_abs(self, p):
+        px, py, pz = p
+        pz = max(pz, self.Z_FLOOR)
+        r = math.sqrt(px * px + py * py + pz * pz)
+        if r > self.R_MAX:
+            s = self.R_MAX / r
+            px, py, pz = px * s, py * s, pz * s
+        elif 1e-9 < r < self.R_MIN:
+            s = self.R_MIN / r
+            px, py, pz = px * s, py * s, pz * s
+        return [px, py, pz]
+
+    def target(self, p, rpy):
+        goal_p = self._clamp_abs(p)
+
+        # --- rate limit position by Euclidean step (true linear-speed cap) ---
+        if self.prev_p is None:
+            pub_p = list(goal_p)
+        else:
+            vec = [goal_p[i] - self.prev_p[i] for i in range(3)]
+            dist = math.sqrt(sum(c * c for c in vec))
+            if dist > self.lin_step:
+                k = self.lin_step / dist
+                pub_p = [self.prev_p[i] + vec[i] * k for i in range(3)]
+            else:
+                pub_p = list(goal_p)
+        self.prev_p = pub_p
+
+        # --- rate limit orientation per axis (angular-speed cap) ---
+        if self.prev_rpy is None:
+            pub_rpy = list(rpy)
+        else:
+            pub_rpy = [self.prev_rpy[i]
+                       + clamp(rpy[i] - self.prev_rpy[i],
+                               -self.ang_step, self.ang_step)
+                       for i in range(3)]
+        self.prev_rpy = pub_rpy
+
+        px, py, pz = pub_p
+        if abs(px) < 1e-6:                 # px must stay non-zero (controller quirk)
+            px = 1e-6
+
+        R = matmul3(rot_z(pub_rpy[2]), matmul3(rot_y(pub_rpy[1]), rot_x(pub_rpy[0])))
+        if abs(R[2][2]) < 1e-6:            # R22 must stay non-zero (controller quirk)
+            R[2][2] = -1e-6
+
+        r = math.sqrt(px * px + py * py + pz * pz)
+        data = [px, py, pz] + mat_rowmajor(R)
+        return data, r
+
+
 # ----------------------------------------------------------------------------
 # Offline self-test -- no ROS, no robot. Verifies the trajectory stays inside
 # limits and never trips the controller's px / R22 quirks.
@@ -321,9 +517,20 @@ class SafetyLimiter:
 def selftest(args):
     rate = args.rate
     dt = 1.0 / rate
-    lim = SafetyLimiter(DEFAULT_ANCHOR_P, R_DOWN, v_max=args.v_max,
-                        w_max=args.w_max, rate=rate)
-    total = total_duration(args.time_scale)
+    if args.routine == "spin":
+        # Seed the limiter at the routine's own start pose so the self-test
+        # measures the choreography's intrinsic speeds (a real run seeds from
+        # the arm's current pose and the limiter ramps the approach at v_max).
+        start_p, start_rpy = _sp_ready(0.0, 1.0)
+        lim = SpinLimiter(v_max=args.v_max, w_max=args.w_max, rate=rate,
+                          start_p=start_p, start_rpy=list(start_rpy))
+        get_step = lambda t: spin_choreography(t, args.time_scale, args.amp_scale)
+        total = spin_total_duration(args.time_scale)
+    else:
+        lim = SafetyLimiter(DEFAULT_ANCHOR_P, R_DOWN, v_max=args.v_max,
+                            w_max=args.w_max, rate=rate)
+        get_step = lambda t: choreography(t, args.time_scale, args.amp_scale)
+        total = total_duration(args.time_scale)
 
     prev_p = None
     prev_rpy = None
@@ -338,11 +545,11 @@ def selftest(args):
 
     t = 0.0
     while t <= total + dt:
-        step = choreography(t, args.time_scale, args.amp_scale)
+        step = get_step(t)
         if step is None:
             break
-        _, dp, rpy = step
-        data, r = lim.target(dp, rpy)
+        _, A, B = step
+        data, r = lim.target(A, B)
         px, py, pz = data[0], data[1], data[2]
         cur_rpy = lim.prev_rpy
         if prev_p is not None:
@@ -359,21 +566,23 @@ def selftest(args):
         n += 1
         t += dt
 
+    L = type(lim)
     print("=== robot_dance self-test ===")
+    print(f"routine           : {args.routine}")
     print(f"samples           : {n}")
     print(f"routine duration  : {total:.1f} s")
     print(f"max linear speed  : {max_speed:.3f} m/s   (cap {args.v_max})")
     print(f"max angular speed : {max_wspeed:.3f} rad/s   (cap {args.w_max})")
-    print(f"min z (floor)     : {min_z:.3f} m   (floor {SafetyLimiter.Z_FLOOR})")
-    print(f"radius range      : {min_r:.3f}..{max_r:.3f} m   (allowed {SafetyLimiter.R_MIN}..{SafetyLimiter.R_MAX})")
+    print(f"min z (floor)     : {min_z:.3f} m   (floor {L.Z_FLOOR})")
+    print(f"radius range      : {min_r:.3f}..{max_r:.3f} m   (allowed {L.R_MIN}..{L.R_MAX})")
     print(f"min |R22|         : {min_absR22:.3e}   (must be > 0)")
     print(f"min |px|          : {min_abspx:.3e}   (must be > 0)")
 
     ok = (max_speed <= args.v_max + 1e-6
           and max_wspeed <= args.w_max + 1e-6
-          and min_z >= SafetyLimiter.Z_FLOOR - 1e-9
-          and max_r <= SafetyLimiter.R_MAX + 1e-6
-          and min_r >= SafetyLimiter.R_MIN - 1e-6
+          and min_z >= L.Z_FLOOR - 1e-9
+          and max_r <= L.R_MAX + 1e-6
+          and min_r >= L.R_MIN - 1e-6
           and min_absR22 > 0.0
           and min_abspx > 0.0)
     print("RESULT            :", "PASS" if ok else "FAIL")
@@ -442,9 +651,27 @@ def run_ros(args):
     p0 = node.anchor_p
     node.get_logger().info(
         f"Anchor pose: x={p0[0]:.3f} y={p0[1]:.3f} z={p0[2]:.3f}")
-    node.get_logger().info(
-        f"Motion stays within +/-{SafetyLimiter.DX} m of anchor, "
-        f"speed <= {args.v_max} m/s. Publishing to {args.topic}.")
+
+    if args.routine == "spin":
+        # Absolute base-frame poses, seeded from the current pose so the arm
+        # ramps in smoothly. The big spin swings far from the anchor by design.
+        lim = SpinLimiter(v_max=args.v_max, w_max=args.w_max, rate=args.rate,
+                          start_p=node.anchor_p,
+                          start_rpy=rpy_from_R(node.anchor_R))
+        get_step = lambda t: spin_choreography(t, args.time_scale, args.amp_scale)
+        total = spin_total_duration(args.time_scale)
+        node.get_logger().warn(
+            "ROUTINE=spin: BIG motion -- arm orbits the base, stands tall and "
+            "spins the flange. Stays reachable / above the table / under "
+            f"{args.v_max} m/s, but clear a WIDE area. Publishing to {args.topic}.")
+    else:
+        lim = SafetyLimiter(node.anchor_p, node.anchor_R, v_max=args.v_max,
+                            w_max=args.w_max, rate=args.rate)
+        get_step = lambda t: choreography(t, args.time_scale, args.amp_scale)
+        total = total_duration(args.time_scale)
+        node.get_logger().info(
+            f"Motion stays within +/-{SafetyLimiter.DX} m of anchor, "
+            f"speed <= {args.v_max} m/s. Publishing to {args.topic}.")
 
     if args.confirm:
         try:
@@ -459,11 +686,8 @@ def run_ros(args):
         node.get_logger().info(f"Dancing in {c} ...")
         time.sleep(1.0)
 
-    lim = SafetyLimiter(node.anchor_p, node.anchor_R, v_max=args.v_max,
-                        w_max=args.w_max, rate=args.rate)
     msg = Float64MultiArray()
     dt = 1.0 / args.rate
-    total = total_duration(args.time_scale)
 
     last_name = None
     try:
@@ -471,14 +695,14 @@ def run_ros(args):
             t0 = time.time()
             while True:
                 t = time.time() - t0
-                step = choreography(t, args.time_scale, args.amp_scale)
+                step = get_step(t)
                 if step is None:
                     break
-                name, dp, rpy = step
+                name, A, B = step
                 if name != last_name:
                     node.get_logger().info(f"-> {name}")
                     last_name = name
-                data, _ = lim.target(dp, rpy)
+                data, _ = lim.target(A, B)
                 msg.data = [float(x) for x in data]
                 node.pub.publish(msg)
                 rclpy.spin_once(node, timeout_sec=0.0)
@@ -500,6 +724,9 @@ def run_ros(args):
 
 def build_parser():
     p = argparse.ArgumentParser(description="Make the Franka Panda dance + wave.")
+    p.add_argument("--routine", choices=["dance", "spin"], default="dance",
+                   help="'dance' = gentle wiggle around the current pose; "
+                        "'spin' = big breakdance (orbit base, stand tall, spin hand)")
     p.add_argument("--topic", default="/cartesian_impedance/pose_desired")
     p.add_argument("--state-topic",
                    default="/franka_robot_state_broadcaster/robot_state")
