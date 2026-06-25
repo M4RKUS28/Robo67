@@ -5,6 +5,7 @@
 '   robo67_insertion/lib/insertion_intent.py  (InsertionIntentModule.step)
 ' Convention: Z is UP in the robot base frame, so "descend" = decreasing z.
 ' ===========================================================================
+!theme plain
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam roundCorner 6
@@ -66,7 +67,7 @@ repeat :begin seat attempt;
       if (spiral radius > max (12 mm)?) then (yes, exhausted)
         :Restart spiral from centre;\nretries++;
         if (retries > limit (3)?) then (yes)
-          #FFD9D9:**ERROR** — search exhausted;
+          :**ERROR** — search exhausted; <<#FFD9D9>>
           stop
         endif
       else (no)
@@ -85,7 +86,7 @@ repeat :begin seat attempt;
     if (reached ≥ 80% of insert depth?) then (no)
       :retries++;
       if (retries > limit (3)?) then (yes)
-        #FFD9D9:**ERROR** — insertion not confirmed;
+        :**ERROR** — insertion not confirmed; <<#FFD9D9>>
         stop
       else (no)
       endif
@@ -101,7 +102,7 @@ partition "RETRACT" {
   repeat while (back above contact_z?) is (no) not (yes)
 }
 
-#D9F2D9:**DONE** — peg seated & retracted;
+:**DONE** — peg seated & retracted; <<#D9F2D9>>
 stop
 
 legend bottom

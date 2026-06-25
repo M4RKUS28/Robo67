@@ -5,6 +5,7 @@
 ' host-testable seams, which compose primitive building blocks.
 ' See docs/adr/0001-canonical-insertion-intent-module.md
 ' ===========================================================================
+!theme plain
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
 skinparam roundCorner 6
