@@ -56,14 +56,15 @@ class InsertionCfg:
 
 @dataclass
 class TopicsCfg:
+    # VERIFIED against the running sim (Phase 0.3). See PHASE0_VERIFIED.md.
     controller_name: str = "panda_cartesian_impedance_controller"
     arm_resource: str = "panda"
     desired_pose: str = "/panda/panda_cartesian_impedance_controller/desired_pose"
     parameters: str = "/panda/panda_cartesian_impedance_controller/parameters"
-    set_controllers: str = "/set_controllers"
-    # Confirm exact name in Phase 0; fallback "/franka_robot_state_broadcaster/robot_state".
-    robot_state: str = "/franka_robot_state_broadcaster/panda/robot_state"
-    error_recovery: str = "/panda_error_recovery_service_server/error_recovery"
+    set_controllers: str = "/multi_mode_controller/set_controllers"   # namespaced!
+    robot_state: str = "/franka_robot_state_broadcaster/robot_state"
+    error_recovery: str = "/panda_error_recovery_service_server/error_recovery"  # hardware only
+    gripper_ns: str = "/panda_gripper_sim_node"   # sim; hardware ns confirmed in Phase 4
     socket_pose: str = "/robo67/socket_pose"
     socket_detection: str = "/robo67/socket_detection"
 

@@ -32,13 +32,15 @@ insertion:
   control_rate_hz: 50.0
 
 topics:
+  # VERIFIED against the running sim (Phase 0.3). See PHASE0_VERIFIED.md.
   controller_name: panda_cartesian_impedance_controller
   arm_resource: panda
   desired_pose: /panda/panda_cartesian_impedance_controller/desired_pose
   parameters: /panda/panda_cartesian_impedance_controller/parameters
-  set_controllers: /set_controllers
-  robot_state: /franka_robot_state_broadcaster/panda/robot_state
+  set_controllers: /multi_mode_controller/set_controllers
+  robot_state: /franka_robot_state_broadcaster/robot_state
   error_recovery: /panda_error_recovery_service_server/error_recovery
+  gripper_ns: /panda_gripper_sim_node
   socket_pose: /robo67/socket_pose
   socket_detection: /robo67/socket_detection
 
