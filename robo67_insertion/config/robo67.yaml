@@ -47,7 +47,11 @@ topics:
   socket_detection: /robo67/socket_detection
 
 camera:
-  c920_device: 8
+  # Device numbers are unstable across replug; prefer the by-id symlinks below.
+  # Verified 2026-06-25 (later session): C920 enumerated at video0/1, D405 at video2-7.
+  #   C920 : /dev/v4l/by-id/usb-046d_HD_Pro_Webcam_C920_C26B1F5F-video-index0
+  #   D405 : /dev/v4l/by-id/usb-Intel_R__RealSense_TM__Depth_Camera_405_*-video-index4 (color)
+  c920_device: 0
   d405_color_device: 6
   d405_depth_device: 2
   c920_fx: 1000.0

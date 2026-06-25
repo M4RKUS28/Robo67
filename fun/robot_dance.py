@@ -70,6 +70,39 @@ def matmul3(A, B):
 def mat_rowmajor(R):
     return [R[i][j] for i in range(3) for j in range(3)]
 
+
+def quat_from_rot(R):
+    """Convert a 3x3 rotation matrix to quaternion (x, y, z, w)."""
+    tr = R[0][0] + R[1][1] + R[2][2]
+    if tr > 0.0:
+        s = math.sqrt(tr + 1.0) * 2.0
+        w = 0.25 * s
+        x = (R[2][1] - R[1][2]) / s
+        y = (R[0][2] - R[2][0]) / s
+        z = (R[1][0] - R[0][1]) / s
+    elif R[0][0] > R[1][1] and R[0][0] > R[2][2]:
+        s = math.sqrt(1.0 + R[0][0] - R[1][1] - R[2][2]) * 2.0
+        w = (R[2][1] - R[1][2]) / s
+        x = 0.25 * s
+        y = (R[0][1] + R[1][0]) / s
+        z = (R[0][2] + R[2][0]) / s
+    elif R[1][1] > R[2][2]:
+        s = math.sqrt(1.0 + R[1][1] - R[0][0] - R[2][2]) * 2.0
+        w = (R[0][2] - R[2][0]) / s
+        x = (R[0][1] + R[1][0]) / s
+        y = 0.25 * s
+        z = (R[1][2] + R[2][1]) / s
+    else:
+        s = math.sqrt(1.0 + R[2][2] - R[0][0] - R[1][1]) * 2.0
+        w = (R[1][0] - R[0][1]) / s
+        x = (R[0][2] + R[2][0]) / s
+        y = (R[1][2] + R[2][1]) / s
+        z = 0.25 * s
+    n = math.sqrt(x * x + y * y + z * z + w * w)
+    if n > 1e-9:
+        return (x / n, y / n, z / n, w / n)
+    return (0.0, 0.0, 0.0, 1.0)
+
 # Default "pointing straight down" orientation (rotation of pi about base X).
 # R22 = -1 (non-zero -> controller will accept the orientation update).
 R_DOWN = [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]]
@@ -389,16 +422,35 @@ def run_ros(args):
     from rclpy.node import Node
     from std_msgs.msg import Float64MultiArray
     try:
+        from multi_mode_control_msgs.msg import CartesianImpedanceGoal
+    except Exception:
+        CartesianImpedanceGoal = None
+    try:
         from franka_msgs.msg import FrankaState
     except Exception:
         FrankaState = None
 
+    pub_mode = args.message_type
+    if pub_mode == "auto":
+        if "panda_cartesian_impedance_controller/desired_pose" in args.topic:
+            pub_mode = "cart_goal"
+        else:
+            pub_mode = "float_array"
+
+    if pub_mode == "cart_goal" and CartesianImpedanceGoal is None:
+        print("ERROR: cart_goal mode requested but multi_mode_control_msgs is unavailable")
+        return 1
+
     class DanceNode(Node):
         def __init__(self):
             super().__init__("robot_dance")
-            self.pub = self.create_publisher(Float64MultiArray, args.topic, 10)
+            if pub_mode == "cart_goal":
+                self.pub = self.create_publisher(CartesianImpedanceGoal, args.topic, 10)
+            else:
+                self.pub = self.create_publisher(Float64MultiArray, args.topic, 10)
             self.anchor_p = None
             self.anchor_R = None
+            self.q_n = [0.0] * 7
             self._got_state = False
             if FrankaState is not None and not args.assume_home:
                 self.sub = self.create_subscription(
@@ -412,6 +464,7 @@ def run_ros(args):
             self.anchor_R = [[m[0 + 4 * 0], m[0 + 4 * 1], m[0 + 4 * 2]],
                              [m[1 + 4 * 0], m[1 + 4 * 1], m[1 + 4 * 2]],
                              [m[2 + 4 * 0], m[2 + 4 * 1], m[2 + 4 * 2]]]
+            self.q_n = [float(v) for v in msg.q]
             self._got_state = True
 
     rclpy.init()
@@ -444,7 +497,7 @@ def run_ros(args):
         f"Anchor pose: x={p0[0]:.3f} y={p0[1]:.3f} z={p0[2]:.3f}")
     node.get_logger().info(
         f"Motion stays within +/-{SafetyLimiter.DX} m of anchor, "
-        f"speed <= {args.v_max} m/s. Publishing to {args.topic}.")
+        f"speed <= {args.v_max} m/s. Publishing to {args.topic} ({pub_mode}).")
 
     if args.confirm:
         try:
@@ -461,7 +514,7 @@ def run_ros(args):
 
     lim = SafetyLimiter(node.anchor_p, node.anchor_R, v_max=args.v_max,
                         w_max=args.w_max, rate=args.rate)
-    msg = Float64MultiArray()
+    msg = Float64MultiArray() if pub_mode == "float_array" else CartesianImpedanceGoal()
     dt = 1.0 / args.rate
     total = total_duration(args.time_scale)
 
@@ -479,12 +532,32 @@ def run_ros(args):
                     node.get_logger().info(f"-> {name}")
                     last_name = name
                 data, _ = lim.target(dp, rpy)
-                msg.data = [float(x) for x in data]
+                if pub_mode == "cart_goal":
+                    px, py, pz = data[0], data[1], data[2]
+                    R = [[data[3], data[4], data[5]],
+                         [data[6], data[7], data[8]],
+                         [data[9], data[10], data[11]]]
+                    qx, qy, qz, qw = quat_from_rot(R)
+                    msg.pose.position.x = float(px)
+                    msg.pose.position.y = float(py)
+                    msg.pose.position.z = float(pz)
+                    msg.pose.orientation.x = float(qx)
+                    msg.pose.orientation.y = float(qy)
+                    msg.pose.orientation.z = float(qz)
+                    msg.pose.orientation.w = float(qw)
+                    msg.q_n = [float(v) for v in node.q_n]
+                else:
+                    msg.data = [float(x) for x in data]
                 node.pub.publish(msg)
                 rclpy.spin_once(node, timeout_sec=0.0)
                 sleep = dt - (time.time() - t0 - t)
                 if sleep > 0:
                     time.sleep(sleep)
+                if args.max_runtime > 0.0 and t >= args.max_runtime:
+                    node.get_logger().info(f"Reached --max-runtime {args.max_runtime:.1f}s, stopping.")
+                    break
+            if args.max_runtime > 0.0 and t >= args.max_runtime:
+                break
             if not args.loop:
                 break
             last_name = None
@@ -500,12 +573,16 @@ def run_ros(args):
 
 def build_parser():
     p = argparse.ArgumentParser(description="Make the Franka Panda dance + wave.")
-    p.add_argument("--topic", default="/cartesian_impedance/pose_desired")
+    p.add_argument("--topic", default="/panda/panda_cartesian_impedance_controller/desired_pose")
+    p.add_argument("--message-type", choices=["auto", "float_array", "cart_goal"], default="auto",
+                   help="publisher payload type; auto infers from topic")
     p.add_argument("--state-topic",
                    default="/franka_robot_state_broadcaster/robot_state")
     p.add_argument("--rate", type=float, default=100.0, help="publish rate (Hz)")
     p.add_argument("--time-scale", type=float, default=1.0,
                    help=">1 slower, <1 faster")
+    p.add_argument("--max-runtime", type=float, default=0.0,
+                   help="stop after N seconds of choreography time (0 = full routine)")
     p.add_argument("--amp-scale", type=float, default=1.0,
                    help="<1 smaller/gentler motions")
     p.add_argument("--v-max", type=float, default=0.4,
