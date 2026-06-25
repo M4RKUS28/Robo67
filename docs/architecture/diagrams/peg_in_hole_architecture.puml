@@ -1,108 +1,132 @@
 @startuml peg_in_hole_architecture
 ' ===========================================================================
 ' Robo67 -- Peg-in-Hole Insertion CODE ARCHITECTURE (the "how it fits" side)
-' Component diagram of robo67_insertion: thin ROS nodes compose pure,
-' host-testable seams, which compose primitive building blocks.
+' Layered component view: robot cell -> thin ROS nodes -> canonical pure seams
+' -> primitives. Left column = perception pipeline, right column = insertion
+' pipeline, so dependencies flow straight down.
 ' See docs/adr/0001-canonical-insertion-intent-module.md
 ' ===========================================================================
 !theme plain
 skinparam backgroundColor #FFFFFF
 skinparam shadowing false
-skinparam roundCorner 6
+skinparam roundCorner 10
 skinparam defaultFontName "Inter, Helvetica, Arial, sans-serif"
 skinparam defaultFontSize 12
-skinparam ArrowColor #18181B
-skinparam ArrowFontColor #52525B
 skinparam componentStyle rectangle
-skinparam ComponentBorderColor #3F3F46
-skinparam ComponentBackgroundColor #F4F4F5
-skinparam PackageBorderColor #A1A1AA
-skinparam PackageBackgroundColor #FAFAFA
+skinparam nodesep 22
+skinparam ranksep 55
+skinparam ArrowColor #3F3F46
+skinparam ArrowThickness 1
+skinparam ArrowFontColor #52525B
+skinparam PackageFontStyle bold
+skinparam PackageFontColor #27272A
+skinparam PackageTitleAlignment left
 
-title Robo67 — Peg-in-Hole Insertion Architecture (nodes → seams → primitives)
+title Robo67 — Peg-in-Hole Insertion Architecture\n<size:12><color:#52525B>layers flow top → bottom · insertion stack on the left · perception on the right</color></size>
 
-' --------------------------------------------------------------------------
-package "Hardware & controllers" {
-  node "Franka Panda arm" as ARM
-  component "overhead C920\n(cv camera)" as C920
-  component "eye-in-hand D405\n(depth camera)" as D405
-  component "MMC cartesian_impedance\n(SIM controller)" as MMC
-  component "franka_controllers\nCartesian impedance (REAL)" as FCTRL
+' ===== Layer 0: hardware / robot cell (blue) ==============================
+package "  ① Robot cell — sensors & Cartesian controllers  " as L0 #EFF6FF {
+  component "overhead **C920**\n(RGB camera)"            as C920  #DBEAFE
+  component "eye-in-hand **D405**\n(depth camera)"        as D405  #DBEAFE
+  component "MMC cartesian_impedance\n«SIM controller»"   as MMC   #DBEAFE
+  component "franka_controllers\nCart. impedance «REAL»"  as FCTRL #DBEAFE
+  component "**Franka Panda arm**"                        as ARM   #BFDBFE
 }
 
-' --------------------------------------------------------------------------
-package "ROS 2 nodes  (thin rclpy wrappers — no transition logic)" {
-  component "socket_detector_node" as NDET
-  component "d405_servo_node" as NSERVO
-  component "insertion_orchestrator_node\n«SIM / MMC path»" as NORCH
-  component "hardware_insertion_node\n«REAL arm path»" as NHW
-  component "calibration_node" as NCAL
+' ===== Layer 1: ROS 2 nodes (green) =======================================
+package "  ② ROS 2 nodes — thin rclpy wrappers (no transition logic)  " as L1 #F0FDF4 {
+  component "socket_detector_node"                        as NDET   #DCFCE7
+  component "d405_servo_node"                             as NSERVO #DCFCE7
+  component "insertion_orchestrator_node\n«SIM / MMC path»"   as NORCH #DCFCE7
+  component "hardware_insertion_node\n«REAL arm path»"        as NHW   #DCFCE7
+  component "calibration_node"                            as NCAL   #DCFCE7
 }
 
-' --------------------------------------------------------------------------
-package "Canonical seams  (pure · host-testable · pytest, no rclpy/ROS/cv2)" {
-  component "insertion_intent\nInsertionIntentModule\n(the ONE phase model)" as INTENT #FFE9B0
-  component "command_path_adapters\nMMC · Impedance" as ADAPT
-  component "contact_lifecycle\nbaseline update/freeze" as CLIFE
-  component "safety_envelope\nMMC · Impedance profiles" as SENV
-  component "pixel_mapping\nHomography · Pinhole" as PMAP
+' ===== Layer 2: canonical seams (orange; insertion_intent dominant) =======
+package "  ③ Canonical seams — pure · host-testable (pytest, no rclpy/ROS/cv2)  " as L2 #FFF7ED {
+  component "pixel_mapping\nHomography · Pinhole"         as PMAP  #FFE0B2
+  component "command_path_adapters\nMMC · Impedance"      as ADAPT #FFE0B2
+  component "contact_lifecycle\nbaseline update/freeze"   as CLIFE #FFE0B2
+  component "safety_envelope\nMMC · Impedance profiles"   as SENV  #FFE0B2
+  component "**insertion_intent**\n//InsertionIntentModule//\n— the ONE phase model —" as INTENT #FB923C
 }
 
-' --------------------------------------------------------------------------
-package "Primitives  (building blocks the seams compose)" {
-  component "wrench\nEMA + contact detect" as WRENCH
-  component "spiral\nArchimedean offset" as SPIRAL
-  component "safety\nclamp / abort" as SAFE
-  component "geometry\nposes + homography" as GEOM
-  component "servoing\nIBVS correction" as SERVO
-  component "hole_detect\ncircle detection" as HOLE
+' ===== Layer 3: primitives (violet) =======================================
+package "  ④ Primitives — building blocks the seams compose  " as L3 #FAF5FF {
+  component "hole_detect\ncircle detection"   as HOLE   #EDE7F6
+  component "servoing\nIBVS correction"       as SERVO  #EDE7F6
+  component "geometry\nposes + homography"    as GEOM   #EDE7F6
+  component "spiral\nArchimedean offset"      as SPIRAL #EDE7F6
+  component "wrench\nEMA + contact detect"    as WRENCH #EDE7F6
+  component "safety\nclamp / abort"           as SAFE   #EDE7F6
 }
 
-' === nodes -> seams (composition) =========================================
-NDET    --> HOLE
-NDET    --> PMAP   : Homography
-NSERVO  --> HOLE
-NSERVO  --> PMAP   : Pinhole
-NORCH   --> ADAPT  : MMC
-NORCH   --> CLIFE
-NORCH   --> SENV   : MMC profile
-NHW     --> ADAPT  : Impedance
-NHW     --> CLIFE
-NHW     --> SENV   : Impedance profile
-NCAL    --> GEOM   : fit homography
+' ---- in-layer left->right ordering (hidden edges) ------------------------
+C920 -[hidden]right- D405
+D405 -[hidden]right- MMC
+MMC -[hidden]right- FCTRL
+FCTRL -[hidden]right- ARM
+NDET -[hidden]right- NSERVO
+NSERVO -[hidden]right- NORCH
+NORCH -[hidden]right- NHW
+NHW -[hidden]right- NCAL
+PMAP -[hidden]right- ADAPT
+ADAPT -[hidden]right- CLIFE
+CLIFE -[hidden]right- SENV
+HOLE -[hidden]right- SERVO
+SERVO -[hidden]right- GEOM
+GEOM -[hidden]right- SPIRAL
+SPIRAL -[hidden]right- WRENCH
+WRENCH -[hidden]right- SAFE
 
-' === seams -> seams / primitives ==========================================
-ADAPT   --> INTENT : delegates ALL\ntransitions
-INTENT  --> SPIRAL
-INTENT  --> WRENCH
-CLIFE   --> WRENCH
-SENV    --> SAFE
-PMAP    --> GEOM
-PMAP    --> SERVO
+' ===== composition / Python import (solid, downward) ======================
+NDET   --> PMAP   : Homography
+NDET   --> HOLE
+NSERVO --> PMAP   : Pinhole
+NSERVO --> HOLE
+NORCH  --> ADAPT  : MMC
+NHW    --> ADAPT  : Impedance
+NORCH  --> CLIFE
+NHW    --> CLIFE
+NORCH  --> SENV
+NHW    --> SENV
+NCAL   --> GEOM
 
-' === ROS message flow (dashed) ============================================
-C920   ..>  NDET   : frames
-D405   ..>  NSERVO : frames
-NDET   ..>  NORCH  : /robo67/socket_pose
-NSERVO ..>  NORCH  : /robo67/servo_correction
-NORCH  ..>  MMC    : CartesianImpedanceGoal
-NHW    ..>  FCTRL  : Float64MultiArray\n[px,py,pz, R00..R22]
-MMC    -->  ARM
-FCTRL  -->  ARM
-ARM    ..>  NORCH  : FrankaState\n(EE pose + wrench)
-ARM    ..>  NHW    : FrankaState\n(EE pose + wrench)
+ADAPT  --> INTENT : delegates ALL transitions
+INTENT --> SPIRAL
+INTENT --> WRENCH
+CLIFE  --> WRENCH
+SENV   --> SAFE
+PMAP   --> GEOM
+PMAP   --> SERVO
 
-note bottom of INTENT
-  Controller-agnostic. Owns contact detection,
-  spiral, drop/retry, confirm/retract & contact_z.
-  Quirks (carrot lead, below-surface gaps, held R)
-  live ONLY in the command-path adapters.
+' ===== ROS 2 messages / hardware loop (blue dashed) =======================
+C920  .[#2563EB].>  NDET   : frames
+D405  .[#2563EB].>  NSERVO : frames
+NORCH .[#2563EB].>  MMC    : goal
+NHW   .[#2563EB].>  FCTRL  : pose_desired
+MMC   .[#2563EB].>  ARM
+FCTRL .[#2563EB].>  ARM
+ARM   .[#2563EB].>  NORCH  : FrankaState
+ARM   .[#2563EB].>  NHW    : FrankaState
+
+note as N1 #FFF7ED
+  **insertion_intent** is controller-agnostic: it owns contact
+  detection, spiral, drop/retry, confirm/retract & contact_z.
+  Controller quirks (carrot lead, below-surface gaps, held R)
+  live ONLY in the command-path adapters — that is why the SIM
+  and REAL nodes share one phase model.
+  ----
+  Perception handoff (ROS topics, not drawn): socket_detector
+  publishes **/robo67/socket_pose** and d405_servo publishes
+  **/robo67/servo_correction**, both consumed by the orchestrator.
 end note
+INTENT .. N1
 
 legend bottom
-  ──▶ uses / composes (Python import)      ┄┄▶ ROS 2 message (topic)
-  Both insertion nodes drive the SAME insertion_intent; the SIM vs REAL
-  difference is isolated in the adapter + safety profile they pick.
+  <color:#3F3F46>solid →</color>  uses / composes (Python import)        <color:#2563EB>blue dashed ⇢</color>  ROS 2 message (topic)
+  Both insertion nodes drive the SAME insertion_intent; SIM vs REAL differs only
+  in the command-path adapter + safety profile they select.
 endlegend
 
 @enduml
