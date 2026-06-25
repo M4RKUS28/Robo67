@@ -33,6 +33,8 @@ __all__ = [
     "detect_holes",
     "WhiteSocketParams",
     "detect_sockets",
+    "WhiteCubeParams",
+    "detect_white_cubes",
 ]
 
 
@@ -238,3 +240,88 @@ def detect_sockets(bgr: np.ndarray,
 
     out.sort(key=lambda hole: hole.score, reverse=True)
     return out
+
+
+@dataclass
+class WhiteCubeParams:
+    """Tunable parameters for :func:`detect_white_cubes`.
+
+    Detects the socket as a bright WHITE SQUARE on a dark background and returns
+    its CENTROID -- a far more robust feature than the faint bore when the C920
+    is even slightly overexposed (verified live 2026-06-25; this is what the
+    socket-proxy homography was calibrated against). The bore sits ~centred on
+    the cube, so the centroid is a stable proxy for it.
+
+    NOTE: this finds white *cubes*, not bores, so it CANNOT tell the socket from
+    an identical blank cube -- keep only the socket in view. It returns the
+    largest qualifying square first.
+
+    Attributes
+    ----------
+    bright_pct / bright_drop / bright_floor:
+        Bright threshold ``max(bright_floor, percentile(gray, bright_pct) -
+        bright_drop)`` -- adapts to exposure while staying above the carpet.
+    min_area_px / max_area_px:
+        Accepted contour area (the cube top), in px^2.
+    min_aspect / max_aspect / min_extent:
+        Bounding-box aspect and fill (area / bbox-area) bounds -- keep filled,
+        roughly square blobs (reject the elongated/irregular arm, cables, edges).
+    roi_margin:
+        Ignore detections whose centroid is within this fractional image border.
+    """
+
+    bright_pct: float = 99.5
+    bright_drop: float = 55.0
+    bright_floor: float = 150.0
+    min_area_px: float = 1200.0
+    max_area_px: float = 30000.0
+    min_aspect: float = 0.55
+    max_aspect: float = 1.8
+    min_extent: float = 0.78
+    roi_margin: float = 0.08
+
+
+def detect_white_cubes(bgr: np.ndarray,
+                       params: WhiteCubeParams = WhiteCubeParams()) -> list[Hole]:
+    """Detect bright white square cube(s) and return centroid(s) as :class:`Hole`.
+
+    Robust drop-in for the socket feature when the bore is too faint to detect
+    (overexposed white-on-white). Returns :class:`Hole` (``u``/``v`` = centroid,
+    ``radius_px`` = half the mean side, ``score`` = bbox fill 'extent'), sorted
+    by contour AREA descending (largest cube first). See :class:`WhiteCubeParams`.
+    """
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    gray = cv2.medianBlur(gray, 5)
+    h, w = gray.shape
+    mx0, my0 = int(params.roi_margin * w), int(params.roi_margin * h)
+
+    thr = max(params.bright_floor, float(np.percentile(gray, params.bright_pct)) - params.bright_drop)
+    white = (gray > thr).astype(np.uint8) * 255
+    white = cv2.morphologyEx(white, cv2.MORPH_CLOSE,
+                             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11)))
+    white = cv2.morphologyEx(white, cv2.MORPH_OPEN,
+                             cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
+    contours, _ = cv2.findContours(white, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    out: list[tuple[Hole, float]] = []
+    for c in contours:
+        area = cv2.contourArea(c)
+        if area < params.min_area_px or area > params.max_area_px:
+            continue
+        x, y, bw, bh = cv2.boundingRect(c)
+        aspect = bw / float(bh)
+        extent = area / float(bw * bh)
+        if not (params.min_aspect < aspect < params.max_aspect) or extent < params.min_extent:
+            continue
+        m = cv2.moments(c)
+        if m["m00"] == 0:
+            continue
+        cx, cy = m["m10"] / m["m00"], m["m01"] / m["m00"]
+        if not (mx0 < cx < w - mx0 and my0 < cy < h - my0):
+            continue
+        hole = Hole(u=float(cx), v=float(cy), radius_px=float((bw + bh) / 4.0),
+                    score=float(extent))
+        out.append((hole, float(area)))
+
+    out.sort(key=lambda ha: ha[1], reverse=True)
+    return [hole for hole, _area in out]

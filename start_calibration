@@ -35,15 +35,16 @@ banner() {
    - the WHITE socket + the peg are on the table, e-stop in hand
    - overhead C920 sees the work area (it will be detected by-id)
 
-  How it works (ROBOT-DRIVEN -- I move the arm, you move the SOCKET):
-   - The arm moves itself to a known spot and HOLDS, peg tip hovering.
-   - You bring the SOCKET so its bore is centred around the hovering peg tip,
-     press Enter (records the robot XY), then set the socket straight down.
-   - The arm moves clear and auto-detects the socket. Repeat >= 4 spots.
+  How it works (you move the arm with Franka's GRIP HANDLES):
+   1) Guide the peg tip into the socket bore (it self-centres) -> press Enter
+   2) Guide the arm CLEAR of the socket (camera sees it)        -> press Enter
+   ...then move the socket to a new spot and repeat (>= 4).
    Type  q + Enter  to finish -> it fits + saves the homography.
 
-  Gentle, clamped motion (speed/force caps, workspace box). Do NOT use the EE
-  guiding buttons (they fight FCI). Keep the e-stop in hand. Ctrl-C aborts.
+  Use the EE grip handles (press the guiding/stop button to enable) to move the
+  arm; release before pressing Enter. The tool only SAMPLES the pose on Enter --
+  it sends no motion command, so it won't fight the guiding. Keep the e-stop in
+  hand. Ctrl-C aborts.
 ============================================================
 
 EOF

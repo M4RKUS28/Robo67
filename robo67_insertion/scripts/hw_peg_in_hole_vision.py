@@ -72,9 +72,11 @@ import numpy as np  # noqa: E402
 # only pulled in lazily inside hardware_insertion_node.run_ros / the live grab.
 from robo67_insertion.lib.hole_detect import (  # noqa: E402
     HoleParams,
+    WhiteCubeParams,
     WhiteSocketParams,
     detect_holes,
     detect_sockets,
+    detect_white_cubes,
 )
 from robo67_insertion.lib.pixel_mapping import (  # noqa: E402
     HomographyMappingAdapter,
@@ -96,10 +98,14 @@ DEFAULT_CONFIG = os.path.join(_PKG_ROOT, "config", "robo67.yaml")
 def build_detector(args):
     """Return a callable ``img -> list[Hole]`` for the chosen detector.
 
-    ``white`` (default) targets the real white-on-dark socket
-    (:func:`detect_sockets`); ``dark`` is the legacy dark-hole detector
-    (:func:`detect_holes`, e.g. for a blackened bore), tunable via --dark-max etc.
+    ``cube`` (default) detects the white cube CENTROID
+    (:func:`detect_white_cubes`) -- robust to overexposure and the feature the
+    socket-proxy homography is calibrated against (keep only the socket in view).
+    ``white`` detects the bore (:func:`detect_sockets`); ``dark`` is the legacy
+    dark-hole detector (:func:`detect_holes`, tunable via --dark-max etc).
     """
+    if args.detector == "cube":
+        return lambda img: detect_white_cubes(img, WhiteCubeParams())
     if args.detector == "white":
         return lambda img: detect_sockets(img, WhiteSocketParams())
     params = HoleParams(
@@ -341,9 +347,9 @@ def build_parser():
     ap.add_argument("--c920-device", type=str, default=None,
                     help="overhead C920 device: a by-id symlink/path or a bare "
                          "/dev/video index (default: from config)")
-    ap.add_argument("--detector", choices=["white", "dark"], default="white",
-                    help="white = real white-on-dark socket (default); dark = legacy "
-                         "dark-hole detector (e.g. blackened bore)")
+    ap.add_argument("--detector", choices=["cube", "white", "dark"], default="cube",
+                    help="cube = white cube centroid (default; matches the socket-proxy "
+                         "calibration); white = bore detector; dark = legacy dark-hole")
     ap.add_argument("--exposure", type=int, default=100,
                     help="lock C920 manual exposure (~40-120) so the white socket "
                          "doesn't overexpose; the live grab passes this through")

@@ -1,35 +1,32 @@
 #!/usr/bin/env python3
 """hw_calibrate_socket_proxy.py -- C920->base homography via the SOCKET as the
-robot-as-groundtruth marker, ROBOT-DRIVEN (the arm moves; you move the socket).
+robot-as-groundtruth marker, HAND-GUIDED (you move the compliant arm).
 
-Why robot-driven (not hand-guided)
-----------------------------------
-The real arm runs the *subscriber* Cartesian impedance controller whose
-stiffness is fixed firm at activation (pos_stiff=500) and is NOT live-settable,
-so the arm cannot be floated for hand-guiding. Instead we COMMAND the arm
-(gently, clamped -- the validated ``hw_move_to`` carrot path) to known base-XY
-positions, and you align the socket to it. A stiff arm is ideal for precise
-commanded holds.
+How it works
+------------
+The overhead detector (:func:`~robo67_insertion.lib.hole_detect.detect_sockets`)
+finds the WHITE socket, not the tool, so we use the socket itself as the
+ground-truth marker. Per station you seat the peg tip in the socket bore (the
+hole self-centres it -> EE XY == socket XY), record, then move the arm clear so
+the camera sees the socket and we detect its pixel. >= 4 socket positions -> fit.
 
-Per station (do >= 4, spread out):
-  1. The arm moves to a known (x, y) at a safe hover Z and HOLDS.
-  2. You bring the SOCKET so its bore sits centred around the hovering peg tip,
-     press Enter (records EE base XY = socket XY), then set the socket straight
-     down on the table.
-  3. The arm moves to a PARK pose (clear of the camera view); the socket pixel
-     is auto-detected (detect_sockets).
-Repeat; type 'q' to finish -> it fits + saves config/c920_homography.npz and
-prints the RMS reprojection error. The socket-top Z is irrelevant here (the
-homography is XY-only; insertion force-probes the true contact Z).
+COMPLIANCE: the real subscriber controller has a fixed firm stiffness that can't
+be lowered, so we float the arm the hw_handguide way -- continuously stream the
+equilibrium at the *current measured* EE at 50 Hz. The spring force then keeps
+resetting and the arm moves freely by hand. (This needs the robot in MOVE mode;
+if it's wedged in Idle after a reflex, relaunch the bringup first.) Collision
+thresholds are loosened while guiding and restored (firm hold) at the end, so a
+hand push won't trip a reflex.
 
-SAFETY: motion is gentle and clamped (workspace AABB, speed cap, force abort,
-reflex auto-recovery). The arm moves only in XY at a fixed hover Z plus to the
-park pose -- it never descends toward the table. Keep the e-stop in hand.
-
-USAGE (INSIDE multipanda-container; cartesian impedance controller ACTIVE) --
-normally launched via ``./start_calibration``:
+USAGE (INSIDE multipanda-container; controller ACTIVE) -- normally via
+``./start_calibration``:
     PYTHONPATH=/host/Code/Robo67/robo67_insertion \
-    python3 scripts/hw_calibrate_socket_proxy.py --confirm
+    python3 scripts/hw_calibrate_socket_proxy.py
+
+Per station the tool prompts:
+    1. "Seat the peg tip in the socket bore, then Enter"   -> records EE
+    2. "Move the arm CLEAR of the socket, then Enter"      -> detects the socket
+Type 'q' then Enter to finish and fit; 'r' to skip a station.
 
 Offline fit/detection self-test (no ROS, camera, or robot):
     python3 scripts/hw_calibrate_socket_proxy.py --selftest
@@ -58,20 +55,8 @@ DEFAULT_CAPTURE_DIR = os.path.join(_PKG_ROOT, "captures", "calib")
 
 
 # ---------------------------------------------------------------------------
-# Geometry + vision helpers (pure).
+# Vision helpers (pure).
 # ---------------------------------------------------------------------------
-
-def make_grid(box, nx, ny):
-    """Serpentine list of (x, y) stations spanning ``box`` = [xmin,xmax,ymin,ymax]."""
-    xmin, xmax, ymin, ymax = box
-    xs = np.linspace(xmin, xmax, nx)
-    ys = np.linspace(ymin, ymax, ny)
-    pts = []
-    for j, y in enumerate(ys):
-        row = list(xs) if j % 2 == 0 else list(xs[::-1])  # short moves between stations
-        pts += [(float(x), float(y)) for x in row]
-    return pts
-
 
 def detect_socket_pixel(frames, params):
     """Best socket pixel (median u,v) over frames that yielded a detection."""
@@ -87,8 +72,7 @@ def detect_socket_pixel(frames, params):
 
 
 # ---------------------------------------------------------------------------
-# Offline self-test: synthesize a known homography + correspondences, fit, and
-# assert round-trip; also check detect_sockets on a synthetic white socket.
+# Offline self-test (no ROS / camera / robot).
 # ---------------------------------------------------------------------------
 
 def _base_to_pixel(H, base_xy):
@@ -118,8 +102,8 @@ def selftest(_args):
     det_ok = px is not None and abs(px[0] - 320) < 6 and abs(px[1] - 240) < 6
     det_ok = det_ok and detect_socket_pixel([cube(False)] * 3, WhiteSocketParams())[0] is None
 
-    grid = make_grid([0.40, 0.55, -0.12, 0.12], 3, 3)
-    base = np.array(grid, float)
+    base = np.array([(0.40, -0.10), (0.50, -0.10), (0.45, 0.0),
+                     (0.40, 0.10), (0.50, 0.10), (0.55, 0.0)], float)
     H_true = np.array([[1 / 2000.0, 0.0, 0.30],
                        [0.0, 1 / 2000.0, -0.20],
                        [0.0, 0.0, 1.0]], float)
@@ -136,7 +120,6 @@ def selftest(_args):
             pass
 
     print(f"detector check     : {'PASS' if det_ok else 'FAIL'}")
-    print(f"grid stations      : {len(grid)} (serpentine)")
     print(f"fit RMS            : {rms*1000:.3f} mm   max reproj {max_err_mm:.3f} mm")
     ok = det_ok and rms * 1000 < 1.0 and max_err_mm < 2.0
     print("RESULT             :", "PASS" if ok else "FAIL")
@@ -144,7 +127,7 @@ def selftest(_args):
 
 
 # ---------------------------------------------------------------------------
-# Live, robot-driven capture (lazy ROS imports).
+# Live hand-guided capture (lazy ROS imports).
 # ---------------------------------------------------------------------------
 
 def _key():
@@ -152,15 +135,15 @@ def _key():
     return sys.stdin.readline().strip().lower() if r else None
 
 
-def hold_until_key(node, target, quat, prompt):
-    """Hold the arm at ``target`` (stream the fixed equilibrium) until the
-    operator presses Enter; return the typed token ('' for Enter, 'q'/'r')."""
+def wait_key_reading(node, prompt):
+    """Wait for Enter while SPINNING (so ee_xyz stays fresh) but WITHOUT streaming
+    any command -- so the operator can use Franka's native guiding (grip handles)
+    without the controller fighting it. Returns the typed token ('' / 'q' / 'r')."""
     import rclpy
 
     print(prompt, flush=True)
     while True:
-        rclpy.spin_once(node, timeout_sec=0.02)
-        node.publish(target, quat)
+        rclpy.spin_once(node, timeout_sec=0.05)
         tok = _key()
         if tok is not None:
             return tok
@@ -194,7 +177,7 @@ def recover_if_needed(node, rclpy, recovery_srv):
 
 def run_capture(args):
     import rclpy
-    from hw_move_to import Mover
+    from hw_handguide import Guide
     from robo67_insertion.nodes.socket_detector_node import grab_frame_gst
 
     if args.c920_device is None:
@@ -204,61 +187,42 @@ def run_capture(args):
         if args.exposure is None:
             args.exposure = cam.c920_exposure
     params = WhiteSocketParams()
-    grid = make_grid(args.box, args.nx, args.ny)
 
     rclpy.init()
-    mover = Mover(cmd_mode=args.cmd_mode)
-    if not mover.wait_state():
+    node = Guide(cmd_mode=args.cmd_mode)
+    if not node.wait_state():
         print("ERROR: no robot_state -- aborting. (bringup up? ROS_LOCALHOST_ONLY "
               "matching it?)", file=sys.stderr)
         rclpy.shutdown(); return 1
-    mover.cmd.detect(timeout=3.0)
-    if not recover_if_needed(mover, rclpy, args.recovery_srv):
-        print("ERROR: robot not controllable (need Idle/Move) -- aborting.", file=sys.stderr)
-        mover.destroy_node(); rclpy.shutdown(); return 1
+    node.cmd.detect(timeout=3.0)
+    if not recover_if_needed(node, rclpy, args.recovery_srv):
+        print("ERROR: robot not controllable. If it's wedged in Idle after a reflex, "
+              "relaunch the bringup, then re-run.", file=sys.stderr)
+        node.destroy_node(); rclpy.shutdown(); return 1
     os.makedirs(args.capture_dir, exist_ok=True)
 
-    hold_quat = mover.ee_quat
-    z_hover = args.z_hover if args.z_hover is not None else float(mover.ee_xyz[2])
-    park = (args.park if args.park is not None
-            else [0.30, -0.35, max(z_hover + 0.05, 0.40)])
-    print("\n=== socket-proxy calibration (robot-driven) ===")
-    print(f"hover Z = {z_hover:.3f} m  | stations = {len(grid)} "
-          f"({args.nx}x{args.ny}) in x[{args.box[0]:.2f},{args.box[1]:.2f}] "
-          f"y[{args.box[2]:.2f},{args.box[3]:.2f}]  | park = {[round(v,2) for v in park]}")
-    print("I MOVE the arm; you align the SOCKET to the hovering peg tip.")
+    print("\n=== socket-proxy calibration (Franka native guiding) ===")
+    print("Move the arm with the GRIP HANDLES (press the guiding/stop button to enable).")
+    print("This tool only SAMPLES the EE on Enter -- it streams no command, so it won't")
+    print("fight the guiding. The robot holds where you leave it.")
 
-    if args.confirm:
-        try:
-            if input("Area clear, e-stop in hand? Type YES to let the arm move: ").strip() != "YES":
-                print("not confirmed -- exiting without moving.")
-                mover.destroy_node(); rclpy.shutdown(); return 0
-        except EOFError:
-            mover.destroy_node(); rclpy.shutdown(); return 1
-    for c in range(args.countdown, 0, -1):
-        print(f"moving in {c} ..."); time.sleep(1.0)
-
-    pixels, base_xy = [], []
-    park_np = np.array(park, float)
+    pixels, base_xy, zs = [], [], []
+    station = 0
     try:
-        for i, (x, y) in enumerate(grid):
-            target = np.array([x, y, z_hover], float)
-            print(f"\n--- station #{i} -> hover ({x:.3f}, {y:.3f}, {z_hover:.3f}) "
-                  f"[{len(pixels)} captured] ---")
-            if not mover.move_to(target, hold_quat, speed=args.speed):
-                print("   move failed -- skipping station."); continue
-            tok = hold_until_key(
-                mover, target, hold_quat,
-                "   Center the SOCKET bore around the hovering peg tip, then press\n"
-                "   Enter (record). Set the socket straight down after. ('q'=finish, 'r'=skip): ")
+        while True:
+            print(f"\n--- station #{station} ({len(pixels)} captured) ---")
+            tok = wait_key_reading(
+                node, "  1) Guide the peg tip into the socket bore (let it self-centre),\n"
+                      "     release the guiding button, then press Enter  (q=finish, r=skip): ")
             if tok == "q":
                 break
             if tok == "r":
                 continue
-            truth = mover.ee_xyz.copy()
-            print(f"   recorded base XY = ({truth[0]:.4f}, {truth[1]:.4f})  -- "
-                  "now set the socket down; moving arm clear to detect ...")
-            mover.move_to(park_np, hold_quat, speed=args.speed)
+            truth = node.ee_xyz.copy()
+            print(f"     recorded base XY = ({truth[0]:.4f}, {truth[1]:.4f})")
+            wait_key_reading(
+                node, "  2) Guide the arm CLEAR of the socket (camera must see it),\n"
+                      "     release the button, then press Enter to detect: ")
             frames = []
             for _ in range(max(1, args.frames)):
                 f = grab_frame_gst(args.c920_device, exposure=args.exposure)
@@ -266,35 +230,31 @@ def run_capture(args):
                     frames.append(f)
             px, nseen = detect_socket_pixel(frames, params)
             if px is None:
-                print(f"   NO socket detected in {len(frames)} frame(s) -- skipped. "
+                print(f"     NO socket detected in {len(frames)} frame(s) -- skipped. "
                       "(arm still occluding? socket out of view? re-do this spot.)")
                 continue
             try:
                 import cv2
                 if frames:
-                    cv2.imwrite(os.path.join(args.capture_dir, f"proxy_{i:02d}.jpg"), frames[-1])
+                    cv2.imwrite(os.path.join(args.capture_dir, f"proxy_{station:02d}.jpg"), frames[-1])
             except Exception:
                 pass
-            print(f"   socket pixel = ({px[0]:.1f}, {px[1]:.1f})  [{nseen}/{len(frames)} frames]")
+            print(f"     socket pixel = ({px[0]:.1f}, {px[1]:.1f})  [{nseen}/{len(frames)} frames]")
             pixels.append([px[0], px[1]])
             base_xy.append([float(truth[0]), float(truth[1])])
+            zs.append(float(truth[2]))
+            station += 1
     except KeyboardInterrupt:
         print("\ninterrupted -- proceeding to fit with what was collected.")
     finally:
-        # leave the arm parked + held
-        try:
-            for _ in range(40):
-                rclpy.spin_once(mover, timeout_sec=0.02)
-                mover.publish(park_np, hold_quat)
-        except Exception:
-            pass
-        mover.destroy_node()
+        node.destroy_node()
         rclpy.shutdown()
 
-    return _fit_and_report(np.array(pixels, float), np.array(base_xy, float), args)
+    return _fit_and_report(np.array(pixels, float), np.array(base_xy, float),
+                           np.array(zs, float), args)
 
 
-def _fit_and_report(pixels, base_xy, args):
+def _fit_and_report(pixels, base_xy, zs, args):
     n = 0 if pixels.size == 0 else len(pixels)
     print(f"\n=== fit === ({n} socket positions)")
     if n < 4:
@@ -305,18 +265,19 @@ def _fit_and_report(pixels, base_xy, args):
     H, rms = fit_and_save(pixels, base_xy, args.out)
     print(f"correspondences  : {corr}")
     print(f"RMS reprojection : {rms*1000:.2f} mm")
+    print(f"socket-top Z (mean): {zs.mean():.4f} m  (spread {zs.max()-zs.min():.4f} m)")
     print(f"homography saved : {args.out}")
-    print("\nNext: python3 scripts/hw_peg_in_hole_vision.py --socket-top-z <measured> --dry-run")
+    print(f"\nNext: python3 scripts/hw_peg_in_hole_vision.py --socket-top-z {zs.mean():.4f} --dry-run")
     if rms * 1000 > args.max_rms_mm:
         print(f"WARNING: RMS {rms*1000:.2f} mm > {args.max_rms_mm} mm -- spread the "
-              "positions wider / align more carefully; consider recapturing.")
+              "positions wider / centre more carefully; consider recapturing.")
         return 1
     return 0
 
 
 def build_parser():
     ap = argparse.ArgumentParser(
-        description="Robot-driven socket-proxy C920->base homography calibration.")
+        description="Hand-guided socket-proxy C920->base homography calibration.")
     ap.add_argument("--selftest", action="store_true",
                     help="offline detector + fit test (no ROS/camera/robot)")
     ap.add_argument("--out", default=DEFAULT_OUT, help="output homography .npz")
@@ -327,22 +288,12 @@ def build_parser():
     ap.add_argument("--exposure", type=int, default=None,
                     help="C920 exposure (default from config)")
     ap.add_argument("--frames", type=int, default=4, help="frames to fuse per detection")
-
-    # grid / motion
-    ap.add_argument("--box", type=float, nargs=4, default=[0.40, 0.55, -0.12, 0.12],
-                    help="station grid region: xmin xmax ymin ymax (m)")
-    ap.add_argument("--nx", type=int, default=3)
-    ap.add_argument("--ny", type=int, default=3)
-    ap.add_argument("--z-hover", type=float, default=None,
-                    help="fixed hover Z for all stations (m); default = current EE z")
-    ap.add_argument("--park", type=float, nargs=3, default=None,
-                    help="x y z the arm moves to so the camera sees the socket")
-    ap.add_argument("--speed", type=float, default=0.03, help="move speed cap (m/s)")
-    ap.add_argument("--confirm", action="store_true", help="prompt YES before any motion")
-    ap.add_argument("--countdown", type=int, default=3)
     ap.add_argument("--cmd-mode", choices=["auto", "mmc", "subscriber"], default="auto")
     ap.add_argument("--recovery-srv",
-                    default="/panda_error_recovery_service_server/error_recovery")
+                    default="/panda_error_recovery_service_server/error_recovery",
+                    help="error_recovery service (clears a reflex / mode 4 at startup)")
+    ap.add_argument("--lock-trans", type=float, default=600.0)
+    ap.add_argument("--lock-rot", type=float, default=30.0)
     ap.add_argument("--max-rms-mm", type=float, default=5.0)
     return ap
 

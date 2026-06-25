@@ -35,9 +35,11 @@ from std_msgs.msg import Float64MultiArray
 from robo67_insertion.config_schema import load_config
 from robo67_insertion.lib.hole_detect import (
     HoleParams,
+    WhiteCubeParams,
     WhiteSocketParams,
     detect_holes,
     detect_sockets,
+    detect_white_cubes,
 )
 from robo67_insertion.lib.pixel_mapping import (
     HomographyMappingAdapter,
@@ -154,9 +156,10 @@ class SocketDetector(Node):
         self.declare_parameter("socket_top_z", 0.0)
         self.declare_parameter("rate_hz", 5.0)
         self.declare_parameter("image_path", "")  # offline: detect on a still image instead of camera
-        # "white" = real white-on-dark socket (detect_sockets); "dark" = the
-        # legacy dark-hole detector (detect_holes), e.g. for a blackened bore.
-        self.declare_parameter("socket_kind", "white")
+        # "cube" = white cube centroid (detect_white_cubes; matches the
+        # socket-proxy homography, robust to overexposure); "white" = bore
+        # detector (detect_sockets); "dark" = legacy dark-hole (detect_holes).
+        self.declare_parameter("socket_kind", "cube")
 
         cfg_path = self.get_parameter("config_path").value or _default_config_path()
         self.cfg = load_config(cfg_path)
@@ -182,7 +185,8 @@ class SocketDetector(Node):
                 f"no homography at {hpath}; publishing detections only (no base-frame pose)"
             )
 
-        self.params = WhiteSocketParams() if self.socket_kind == "white" else HoleParams()
+        self.params = {"cube": WhiteCubeParams(), "white": WhiteSocketParams()}.get(
+            self.socket_kind, HoleParams())
         self.pub_pose = self.create_publisher(PoseStamped, self.cfg.topics.socket_pose, 10)
         self.pub_det = self.create_publisher(Float64MultiArray, self.cfg.topics.socket_detection, 10)
 
@@ -193,6 +197,8 @@ class SocketDetector(Node):
             f"exposure={self.exposure}, {rate} Hz)")
 
     def _detect(self, img):
+        if self.socket_kind == "cube":
+            return detect_white_cubes(img, self.params)
         if self.socket_kind == "white":
             return detect_sockets(img, self.params)
         return detect_holes(img, self.params)

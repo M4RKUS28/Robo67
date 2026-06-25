@@ -16,9 +16,11 @@ import numpy as np
 from robo67_insertion.lib.hole_detect import (
     Hole,
     HoleParams,
+    WhiteCubeParams,
     WhiteSocketParams,
     detect_holes,
     detect_sockets,
+    detect_white_cubes,
 )
 
 
@@ -134,3 +136,35 @@ def test_white_socket_params_overridable():
     # Tightening the radius band below the bore size yields no detection.
     params = WhiteSocketParams(min_radius_px=30.0, max_radius_px=36.0)
     assert detect_sockets(_white_socket_image(with_bore=True), params) == []
+
+
+# --- detect_white_cubes: robust cube-centroid feature (overexposure-proof) ---
+
+def test_white_cube_centroid_detected():
+    # Cube spans (290,200)-(350,260) -> centroid ~ (320, 230).
+    holes = detect_white_cubes(_white_socket_image(with_bore=True))
+    assert len(holes) >= 1
+    top = holes[0]
+    assert isinstance(top, Hole)
+    assert abs(top.u - 320) < 6
+    assert abs(top.v - 230) < 6
+
+
+def test_white_cube_detected_even_without_bore():
+    # The cube detector keys on the WHITE SQUARE, so a blank (bore-less) cube is
+    # still found -- it cannot distinguish socket from blank (keep one in view).
+    holes = detect_white_cubes(_white_socket_image(with_bore=False))
+    assert len(holes) >= 1
+    assert abs(holes[0].u - 320) < 6 and abs(holes[0].v - 230) < 6
+
+
+def test_white_cube_empty_scene():
+    img = np.full((480, 640, 3), 35, np.uint8)
+    assert detect_white_cubes(img) == []
+
+
+def test_white_cube_rejects_non_square_blob():
+    # A long thin bright bar (like a cable/edge) must be rejected by aspect/extent.
+    img = np.full((480, 640, 3), 35, np.uint8)
+    cv2.rectangle(img, (100, 235), (540, 250), (252, 252, 252), -1)  # wide thin bar
+    assert detect_white_cubes(img) == []
