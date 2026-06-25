@@ -31,10 +31,15 @@ from multi_mode_control_msgs.msg import CartesianImpedanceGoal, Controller
 from multi_mode_control_msgs.srv import SetControllers, SetCartesianImpedance
 
 from robo67_insertion.config_schema import RoboConfig, load_config
-from robo67_insertion.lib import geometry, safety
+from robo67_insertion.lib import geometry
 from robo67_insertion.lib.command_path_adapters import MMCCommandPathAdapter
 from robo67_insertion.lib.contact_lifecycle import ContactLifecycleModule, ContactMode
 from robo67_insertion.lib.insertion_intent import IntentParams, IntentSensors
+from robo67_insertion.lib.safety_envelope import (
+    MMCSafetyProfile,
+    SafetyEnvelopeModule,
+    SafetyInput,
+)
 
 
 def _default_config_path() -> str:
@@ -114,6 +119,17 @@ class InsertionOrchestrator(Node):
         )
         self.contact_stiffness_set = False
         self.aborted = False
+
+        # Safety envelope seam (Candidate 4): the MMC command-path profile
+        # anchors the step clamp on the MEASURED EE (carrot-on-a-stick) and
+        # composes the workspace clamp, step clamp, and force abort.
+        self.safety_env = SafetyEnvelopeModule(
+            MMCSafetyProfile(
+                workspace_aabb=self.cfg.safety.workspace_aabb,
+                max_lead_m=self.cfg.safety.max_lead_m,
+                fz_abort_n=self.cfg.safety.fz_abort_n,
+            )
+        )
 
         # I/O
         self.pub_goal = self.create_publisher(CartesianImpedanceGoal, t.desired_pose, 10)
@@ -230,13 +246,6 @@ class InsertionOrchestrator(Node):
         if not self._ensure_adapter():
             return
 
-        # force abort
-        caps = [25.0, 25.0, self.cfg.safety.fz_abort_n, 5.0, 5.0, 5.0]
-        if safety.force_exceeded(self.wrench, caps):
-            self.get_logger().error(f"FORCE ABORT wrench={self.wrench}")
-            self.aborted = True
-            return
-
         # contact lifecycle owns the baseline update/freeze policy: it tracks
         # the free-space baseline only in free-space phases and freezes it in
         # every contact phase, then exposes that baseline to the FSM.
@@ -255,13 +264,23 @@ class InsertionOrchestrator(Node):
             self._set_stiffness(contact=True)
             self.contact_stiffness_set = True
 
-        # safety: workspace clamp, then bound the command to a small lead AHEAD
-        # OF THE ACTUAL EE. The MMC controller discards any desired pose > 0.1 m
-        # from the current pose, so anchoring the clamp to ee (not the previous
-        # command) keeps every setpoint inside the accept window and the arm
+        # safety envelope seam: workspace clamp, then bound the command to a
+        # small lead AHEAD OF THE ACTUAL EE, plus force abort. The MMC
+        # controller discards any desired pose > 0.1 m from the current pose, so
+        # the MMC profile anchors the step clamp on ee (not the previous
+        # command) -- every setpoint stays inside the accept window and the arm
         # tracks smoothly (carrot-on-a-stick).
-        safe = safety.clamp_to_workspace(cmd.desired_xyz, self.cfg.safety.workspace_aabb)
-        safe = safety.clamp_step(self.ee_xyz, safe, self.cfg.safety.max_lead_m)
+        out = self.safety_env.apply(SafetyInput(
+            desired_xyz=cmd.desired_xyz,
+            ee_xyz=tuple(float(v) for v in self.ee_xyz),
+            prev_cmd_xyz=tuple(float(v) for v in self.prev_cmd),
+            wrench6=self.wrench,
+        ))
+        if out.abort:
+            self.get_logger().error(f"FORCE ABORT wrench={self.wrench}")
+            self.aborted = True
+            return
+        safe = out.safe_xyz
 
         if not self.dry_run:
             self._publish(safe, cmd.desired_quat)

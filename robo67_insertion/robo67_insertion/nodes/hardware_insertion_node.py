@@ -61,6 +61,11 @@ from robo67_insertion.lib.command_path_adapters import ImpedanceCommandPathAdapt
 from robo67_insertion.lib.insertion_intent import IntentParams, IntentSensors
 from robo67_insertion.lib.wrench import BaselineEstimator
 from robo67_insertion.lib import safety
+from robo67_insertion.lib.safety_envelope import (
+    ImpedanceSafetyProfile,
+    SafetyEnvelopeModule,
+    SafetyInput,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +159,20 @@ def selftest(args):
     base = BaselineEstimator(alpha=0.1, initial=0.0)
 
     aabb = np.array([[0.2, 0.65], [-0.4, 0.4], [0.02, 0.6]])
-    z_floor = 0.03
+    z_floor = 0.03  # assertion lower bound on min ee z (see RESULT below)
+
+    # Safety envelope seam (Candidate 4): the impedance command-path profile
+    # anchors the step clamp on the PREVIOUS COMMAND and folds the socket-top
+    # z-floor (socket_top_z - max_press_depth_m) into the workspace AABB z-min.
+    safety_env = SafetyEnvelopeModule(
+        ImpedanceSafetyProfile(
+            workspace_aabb=aabb,
+            max_step_m=max_step,
+            f_abort_n=20.0,  # representative cap; the plant never reaches it
+            socket_top_z=float(socket[2]),
+            max_press_depth_m=adapter.max_press_depth_m,
+        )
+    )
 
     max_speed = 0.0
     min_z = 1e9
@@ -179,10 +197,16 @@ def selftest(args):
         goal = np.asarray(out.goal_xyz, float)
         seen.add(phase)
 
-        # rate-limit the command toward goal, then safety clamp
-        cmd = safety.clamp_step(cmd, goal, max_step)
-        cmd = safety.clamp_to_workspace(cmd, aabb)
-        cmd[2] = max(cmd[2], z_floor)
+        # safety envelope seam: workspace clamp (socket-top z-floor folded in),
+        # then bound the COMMAND step from the PREVIOUS COMMAND (impedance
+        # anchor). force abort is computed but the plant never trips it.
+        senv = safety_env.apply(SafetyInput(
+            desired_xyz=goal,
+            ee_xyz=tuple(float(v) for v in ee),
+            prev_cmd_xyz=tuple(float(v) for v in cmd),
+            wrench6=(0.0, 0.0, fz, 0.0, 0.0, 0.0),
+        ))
+        cmd = np.asarray(senv.safe_xyz, float)
 
         if prev_cmd is not None:
             max_speed = max(max_speed, np.linalg.norm(cmd - prev_cmd) / dt)
@@ -364,6 +388,20 @@ def run_ros(args):
             node.get_logger().info(f"inserting in {c} ...")
             time.sleep(1.0)
 
+    # Safety envelope seam (Candidate 4): the impedance command-path profile
+    # anchors the step clamp on the PREVIOUS COMMAND (the equilibrium ratchets
+    # down independent of the lagging arm) and folds the socket-top z-floor
+    # (socket_top_z - max_press_depth_m) into the workspace AABB z-min.
+    safety_env = SafetyEnvelopeModule(
+        ImpedanceSafetyProfile(
+            workspace_aabb=aabb,
+            max_step_m=max_step,
+            f_abort_n=args.f_abort,
+            socket_top_z=float(socket[2]),
+            max_press_depth_m=args.max_press_depth,
+        )
+    )
+
     phase = "MOVE_ABOVE"
     base = BaselineEstimator(alpha=0.05, initial=float(node.wrench[2]))
     cmd = node.ee.copy()
@@ -388,12 +426,6 @@ def run_ros(args):
             ee = node.ee
             fz = float(node.wrench[2])
 
-            # force abort
-            if safety.force_exceeded(node.wrench, caps):
-                node.get_logger().error(f"FORCE ABORT wrench={[round(w,2) for w in node.wrench]}")
-                aborted = True
-                break
-
             if phase == "MOVE_ABOVE":
                 base.update(fz)
 
@@ -403,11 +435,21 @@ def run_ros(args):
             goal = np.asarray(out.goal_xyz, float)
             st = phase
 
-            # rate-limit the COMMAND toward the goal, then safety-clamp
-            cmd = safety.clamp_step(cmd, goal, max_step)
-            cmd = safety.clamp_to_workspace(cmd, aabb)
-            # never command an equilibrium more than max_press_depth below socket top
-            cmd[2] = max(cmd[2], socket[2] - args.max_press_depth)
+            # safety envelope seam: workspace clamp (socket-top z-floor folded
+            # in -- never command an equilibrium more than max_press_depth below
+            # the socket top), then bound the COMMAND step from the PREVIOUS
+            # COMMAND, plus force abort.
+            senv = safety_env.apply(SafetyInput(
+                desired_xyz=goal,
+                ee_xyz=tuple(float(v) for v in ee),
+                prev_cmd_xyz=tuple(float(v) for v in cmd),
+                wrench6=node.wrench,
+            ))
+            if senv.abort:
+                node.get_logger().error(f"FORCE ABORT wrench={[round(w,2) for w in node.wrench]}")
+                aborted = True
+                break
+            cmd = np.asarray(senv.safe_xyz, float)
 
             if st != last_state:
                 node.get_logger().info(
