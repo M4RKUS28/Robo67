@@ -16,8 +16,22 @@ import numpy as np
 from robo67_insertion.lib.hole_detect import (
     Hole,
     HoleParams,
+    WhiteSocketParams,
     detect_holes,
+    detect_sockets,
 )
+
+
+def _white_socket_image(with_bore=True):
+    """Synthetic overhead view: a small WHITE cube on a DARK background, with
+    (or without) a bright recessed bore. Mirrors the real Robo67 socket that
+    detect_sockets targets (white-on-dark, opposite of detect_holes)."""
+    img = np.full((480, 640, 3), 35, np.uint8)                  # dark carpet
+    cv2.rectangle(img, (290, 200), (350, 260), (252, 252, 252), -1)  # white cube top
+    if with_bore:
+        cv2.circle(img, (320, 230), 20, (150, 150, 150), 2)     # bore rim shadow (edge)
+        cv2.circle(img, (320, 230), 18, (205, 205, 205), -1)    # bore bottom (bright < cube)
+    return img
 
 
 def test_synthetic_positive_dark_circle_detected():
@@ -82,3 +96,41 @@ def test_real_fixture_smoke():
         res = detect_holes(img)
         # No socket is present; just confirm the API returns a list.
         assert isinstance(res, list)
+
+
+# --- detect_sockets: the real white-on-dark socket (bright bore) -------------
+
+def test_white_socket_detected():
+    holes = detect_sockets(_white_socket_image(with_bore=True))
+    assert len(holes) >= 1
+    top = holes[0]
+    assert isinstance(top, Hole)
+    assert abs(top.u - 320) < 6
+    assert abs(top.v - 230) < 6
+    assert abs(top.radius_px - 19) < 8
+
+
+def test_white_socket_holeless_cube_rejected():
+    # A flat white cube top (no bore) saturates uniformly -> must NOT be
+    # reported as a socket (this is the on-table decoy cube).
+    holes = detect_sockets(_white_socket_image(with_bore=False))
+    near_cube = [h for h in holes if 290 < h.u < 350 and 200 < h.v < 260]
+    assert near_cube == []
+
+
+def test_white_socket_returns_sorted_list():
+    res = detect_sockets(_white_socket_image(with_bore=True))
+    assert isinstance(res, list)
+    scores = [h.score for h in res]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_white_socket_empty_scene():
+    img = np.full((480, 640, 3), 35, np.uint8)  # just dark background
+    assert detect_sockets(img) == []
+
+
+def test_white_socket_params_overridable():
+    # Tightening the radius band below the bore size yields no detection.
+    params = WhiteSocketParams(min_radius_px=30.0, max_radius_px=36.0)
+    assert detect_sockets(_white_socket_image(with_bore=True), params) == []

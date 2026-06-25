@@ -8,7 +8,7 @@ sub-config dataclasses they need, which keeps them trivially unit-testable.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Union
 
 import yaml
 
@@ -75,9 +75,17 @@ class TopicsCfg:
 
 @dataclass
 class CameraCfg:
-    c920_device: int = 8             # /dev/video8
-    d405_color_device: int = 6       # /dev/video6
+    # Bare /dev/videoN numbers renumber across replug/reboot, so the overhead
+    # C920 is referenced by its STABLE by-id symlink (see docs/cameras.md). A
+    # bare int index is still accepted; grab_frame_gst resolves either form.
+    c920_device: Union[str, int] = (
+        "/dev/v4l/by-id/usb-046d_HD_Pro_Webcam_C920_C26B1F5F-video-index0"
+    )
+    d405_color_device: int = 6       # /dev/video6 (RealSense color; ALSO unstable)
     d405_depth_device: int = 2       # /dev/video2 (Z16)
+    # Lock the C920 to MANUAL exposure (the auto setting blows the white socket
+    # out to pure white, defeating the bright-bore detector). None -> leave auto.
+    c920_exposure: int = 100
     c920_fx: float = 1000.0          # placeholder until intrinsics calibrated
     c920_fy: float = 1000.0
     d405_fx: float = 430.0

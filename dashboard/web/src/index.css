@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(56, 189, 248, 0.06), transparent 60%),
+    radial-gradient(900px 500px at 0% 110%, rgba(167, 139, 250, 0.05), transparent 60%),
+    #070a0f;
+}
+
+@layer components {
+  .panel {
+    @apply rounded-xl border border-ink-700/70 bg-ink-850/80 shadow-panel backdrop-blur-sm;
+  }
+  .panel-pad {
+    @apply p-3 sm:p-4;
+  }
+  .label {
+    @apply text-[11px] font-medium uppercase tracking-wider text-slate-400;
+  }
+  .value-xl {
+    @apply font-mono text-3xl font-semibold tabular-nums text-slate-100;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium;
+  }
+}
+
+/* Thin scrollbars for the decision log */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #283246 transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #283246;
+  border-radius: 9999px;
+}

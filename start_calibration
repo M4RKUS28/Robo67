@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# start_calibration -- one-command, guided C920 -> robot-base homography
+# calibration (socket-proxy, hand-guided). Run this from the repo root:
+#
+#     ./start_calibration              # >=4 socket positions, then it fits
+#     ./start_calibration --frames 6   # extra args pass through to the tool
+#
+# It sets up the ROS/container environment and launches
+# robo67_insertion/scripts/hw_calibrate_socket_proxy.py, which walks you through
+# each step. Works whether you run it on the HOST (it docker-execs into the
+# container) or already INSIDE multipanda-container.
+#
+# The arm stays COMPLIANT the whole time (it floats; you move it by hand). The
+# script issues no autonomous motion. Keep the e-stop in hand anyway.
+#
+# Overridable via env: ROBO67_CONTAINER, ROS_DOMAIN_ID, ROS_LOCALHOST_ONLY.
+set -euo pipefail
+
+CONTAINER="${ROBO67_CONTAINER:-multipanda-container}"
+CAL="/host/Code/Robo67/robo67_insertion/scripts/hw_calibrate_socket_proxy.py"
+DOMAIN="${ROS_DOMAIN_ID:-1}"
+# The real bringup runs localhost-only, so the client MUST match or FrankaState
+# never arrives and controller_manager service calls hang (verified 2026-06-25).
+LOCALHOST="${ROS_LOCALHOST_ONLY:-1}"
+
+banner() {
+  cat <<'EOF'
+
+============================================================
+  Robo67 — C920 -> base calibration (socket-proxy, guided)
+============================================================
+  Preconditions (check these first):
+   - FCI ACTIVE on Desk (https://192.168.1.67/desk/)
+   - cartesian impedance controller is ACTIVE
+   - the WHITE socket + the peg are on the table, e-stop in hand
+   - overhead C920 sees the work area (it will be detected by-id)
+
+  How it works (ROBOT-DRIVEN -- I move the arm, you move the SOCKET):
+   - The arm moves itself to a known spot and HOLDS, peg tip hovering.
+   - You bring the SOCKET so its bore is centred around the hovering peg tip,
+     press Enter (records the robot XY), then set the socket straight down.
+   - The arm moves clear and auto-detects the socket. Repeat >= 4 spots.
+   Type  q + Enter  to finish -> it fits + saves the homography.
+
+  Gentle, clamped motion (speed/force caps, workspace box). Do NOT use the EE
+  guiding buttons (they fight FCI). Keep the e-stop in hand. Ctrl-C aborts.
+============================================================
+
+EOF
+}
+
+run_inside() {
+  # We are already inside the container: set env + exec the guided tool.
+  # shellcheck disable=SC1091
+  source /opt/ros/humble/setup.bash
+  # shellcheck disable=SC1091
+  source /home/developer/multipanda_ws/install/setup.bash
+  export ROS_DOMAIN_ID="$DOMAIN"
+  export ROS_LOCALHOST_ONLY="$LOCALHOST"
+  export LD_LIBRARY_PATH="/home/developer/Libraries/libfranka/lib:${LD_LIBRARY_PATH:-}"
+  export PYTHONPATH="/host/Code/Robo67/robo67_insertion:${PYTHONPATH:-}"
+  echo "[start_calibration] inside container: DOMAIN=$DOMAIN LOCALHOST_ONLY=$LOCALHOST"
+  exec python3 "$CAL" "$@"
+}
+
+if [ -f /.dockerenv ] || [ "${ROBO67_IN_CONTAINER:-0}" = "1" ]; then
+  banner
+  run_inside "$@"
+fi
+
+# --- On the host: docker exec into the container (interactive TTY) -----------
+if ! command -v docker >/dev/null 2>&1; then
+  echo "ERROR: 'docker' not found and not inside the container." >&2
+  echo "       Open a shell in $CONTAINER and run:" >&2
+  echo "         ROBO67_IN_CONTAINER=1 /host/Code/Robo67/start_calibration $*" >&2
+  exit 1
+fi
+if ! docker ps --format '{{.Names}}' | grep -qx "$CONTAINER"; then
+  echo "ERROR: container '$CONTAINER' is not running." >&2
+  echo "       Start it (or set ROBO67_CONTAINER) and retry." >&2
+  exit 1
+fi
+
+banner
+echo "[start_calibration] entering container '$CONTAINER' (DOMAIN=$DOMAIN LOCALHOST_ONLY=$LOCALHOST)"
+exec docker exec -it \
+  -e ROS_DOMAIN_ID="$DOMAIN" \
+  -e ROS_LOCALHOST_ONLY="$LOCALHOST" \
+  "$CONTAINER" bash -lc '
+    source /opt/ros/humble/setup.bash
+    source /home/developer/multipanda_ws/install/setup.bash
+    export LD_LIBRARY_PATH="/home/developer/Libraries/libfranka/lib:${LD_LIBRARY_PATH:-}"
+    export PYTHONPATH="/host/Code/Robo67/robo67_insertion:${PYTHONPATH:-}"
+    exec python3 '"$CAL"' "$@"
+  ' _ "$@"

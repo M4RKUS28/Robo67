@@ -27,7 +27,13 @@ import math
 import cv2
 import numpy as np
 
-__all__ = ["Hole", "HoleParams", "detect_holes"]
+__all__ = [
+    "Hole",
+    "HoleParams",
+    "detect_holes",
+    "WhiteSocketParams",
+    "detect_sockets",
+]
 
 
 @dataclass
@@ -137,3 +143,98 @@ def detect_holes(bgr: np.ndarray, params: HoleParams = HoleParams()) -> list[Hol
     candidates.sort(key=lambda ha: (ha[0].score, ha[1]), reverse=True)
 
     return [hole for hole, _area in candidates]
+
+
+@dataclass
+class WhiteSocketParams:
+    """Tunable parameters for :func:`detect_sockets`.
+
+    The REAL Robo67 socket is a small WHITE 3D-printed cube with a bright
+    recessed bore, sitting on a DARK surface (carpet/mat). This is the opposite
+    of :func:`detect_holes`' assumption (a dark hole), so a separate detector is
+    needed (see docs/cameras.md; verified on live C920 frames 2026-06-25).
+
+    Attributes
+    ----------
+    min_radius_px, max_radius_px:
+        Accepted bore radius range (the bore nearly fills the small cube top).
+    roi_margin:
+        Ignore detections inside this fractional image border (kills bright
+        monitor/box edges and keeps the working area central).
+    inner_med_min:
+        The candidate interior must be bright (``>= inner_med_min``), i.e. on the
+        white cube/bore rather than on dark carpet.
+    inner_contrast_min:
+        Minimum (max - 5th percentile) inside the disc. The bore's shadow/rim
+        creates internal contrast; a FLAT hole-less decoy cube top is uniform
+        (near-zero contrast) and is rejected by this. (Validated 7/7 on live
+        C920 frames across exposures 2026-06-25; this is more robust than an
+        upper median bound, which wrongly rejects a brightly-lit bore.)
+    dark_surround_frac_min / dark_value:
+        Fraction of an outer annulus that must be darker than ``dark_value``
+        (the cube sits on dark carpet) -- rejects the WHITE robot arm, which is
+        surrounded by more white.
+    dp, min_dist_px, hough_param1, hough_param2:
+        ``cv2.HoughCircles`` parameters.
+    """
+
+    min_radius_px: float = 14.0
+    max_radius_px: float = 36.0
+    roi_margin: float = 0.12
+    inner_med_min: float = 185.0
+    inner_contrast_min: float = 30.0
+    dark_surround_frac_min: float = 0.6
+    dark_value: int = 130
+    dp: float = 1.2
+    min_dist_px: float = 40.0
+    hough_param1: float = 120.0
+    hough_param2: float = 18.0
+
+
+def detect_sockets(bgr: np.ndarray,
+                   params: WhiteSocketParams = WhiteSocketParams()) -> list[Hole]:
+    """Detect bright (white) circular socket bores in an overhead BGR image.
+
+    Companion to :func:`detect_holes` for the real white-on-dark socket: finds
+    bright circular candidates with ``cv2.HoughCircles``, then keeps only those
+    that (a) lie in the central ROI, (b) have a bright interior (on the cube),
+    (c) show internal contrast from the bore's rim shadow (rejecting a FLAT
+    hole-less decoy cube), and (d) sit on a dark background (rejecting the white
+    arm). Returns a list of :class:`Hole` sorted by ``score`` (descending) -- a
+    drop-in replacement for :func:`detect_holes` for the real socket.
+    """
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    blur = cv2.medianBlur(gray, 5)
+    h, w = gray.shape
+    mx0, my0 = int(params.roi_margin * w), int(params.roi_margin * h)
+
+    circles = cv2.HoughCircles(
+        blur, cv2.HOUGH_GRADIENT, dp=params.dp, minDist=params.min_dist_px,
+        param1=params.hough_param1, param2=params.hough_param2,
+        minRadius=int(params.min_radius_px), maxRadius=int(params.max_radius_px),
+    )
+    if circles is None:
+        return []
+
+    ys, xs = np.ogrid[:h, :w]
+    out: list[Hole] = []
+    for u, v, r in np.round(circles[0]).astype(int):
+        if not (mx0 < u < w - mx0 and my0 < v < h - my0):
+            continue
+        d = np.sqrt((xs - u) ** 2 + (ys - v) ** 2)
+        inner = gray[d <= 0.9 * r].astype(float)
+        if inner.size < 20:
+            continue
+        med = float(np.percentile(inner, 50))
+        contrast = float(inner.max() - np.percentile(inner, 5))
+        annulus = (d >= 2.2 * r) & (d <= 3.2 * r)
+        dark_frac = float((gray[annulus] < params.dark_value).mean()) if annulus.sum() else 0.0
+        if not (med >= params.inner_med_min
+                and contrast >= params.inner_contrast_min
+                and dark_frac >= params.dark_surround_frac_min):
+            continue
+        score = dark_frac * min(1.0, contrast / 120.0)
+        out.append(Hole(u=float(u), v=float(v), radius_px=float(r), score=float(score)))
+
+    out.sort(key=lambda hole: hole.score, reverse=True)
+    return out

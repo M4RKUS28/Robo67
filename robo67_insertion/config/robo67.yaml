@@ -47,13 +47,19 @@ topics:
   socket_detection: /robo67/socket_detection
 
 camera:
-  # Device numbers are unstable across replug; prefer the by-id symlinks below.
-  # Verified 2026-06-25 (later session): C920 enumerated at video0/1, D405 at video2-7.
-  #   C920 : /dev/v4l/by-id/usb-046d_HD_Pro_Webcam_C920_C26B1F5F-video-index0
-  #   D405 : /dev/v4l/by-id/usb-Intel_R__RealSense_TM__Depth_Camera_405_*-video-index4 (color)
-  c920_device: 0
+  # Bare /dev/videoN numbers renumber across replug/reboot, so reference the
+  # overhead C920 by its STABLE by-id symlink. grab_frame_gst accepts either a
+  # full device path/symlink (preferred) or a bare int index.
+  # Verified 2026-06-25 (this session): by-id symlink below -> /dev/video6,
+  # grabs 1280x720. RealSense D405 currently occupies /dev/video0-5.
+  c920_device: /dev/v4l/by-id/usb-046d_HD_Pro_Webcam_C920_C26B1F5F-video-index0
+  # D405 (eye-in-hand) is also unstable; these are bare indices, re-check by-id
+  # before any D405 use (out of scope for the C920 overhead insertion path).
   d405_color_device: 6
   d405_depth_device: 2
+  # Lock C920 to manual exposure: the white socket otherwise overexposes to flat
+  # white and the bright-bore detector (detect_sockets) can't see it. ~40-120 OK.
+  c920_exposure: 100
   c920_fx: 1000.0
   c920_fy: 1000.0
   d405_fx: 430.0
