@@ -578,6 +578,51 @@ def run_ros(args):
             abort=abort, done=done, error=adapter.module.error,
         ))
 
+    def _open_gripper():
+        """Open the franka_gripper (Move action) to release the peg into the hole."""
+        try:
+            from rclpy.action import ActionClient
+            from franka_msgs.action import Move as GripperMove
+        except Exception as e:
+            node.get_logger().error(f"gripper action import failed: {e}"); return False
+        cli = ActionClient(node, GripperMove, f"{args.gripper_ns}/move")
+        if not cli.wait_for_server(timeout_sec=5.0):
+            node.get_logger().error(
+                f"gripper Move server {args.gripper_ns}/move unavailable -- peg NOT released")
+            return False
+        g = GripperMove.Goal()
+        g.width = float(args.gripper_open_width)
+        g.speed = float(args.gripper_speed)
+        sfut = cli.send_goal_async(g)
+        rclpy.spin_until_future_complete(node, sfut, timeout_sec=5.0)
+        gh = sfut.result()
+        if gh is None or not gh.accepted:
+            node.get_logger().error("gripper open goal rejected"); return False
+        rfut = gh.get_result_async()
+        rclpy.spin_until_future_complete(node, rfut, timeout_sec=10.0)
+        node.get_logger().info(f"gripper opened to {args.gripper_open_width:.3f} m (peg released)")
+        return True
+
+    def _retract_up():
+        """Gently ramp the equilibrium straight up by --retract-after from the current EE."""
+        if node.ee is None:
+            return
+        up = safety.clamp_to_workspace(node.ee + np.array([0.0, 0.0, args.retract_after]), aabb)
+        cmd_r = node.ee.copy()
+        t_r = time.time()
+        while time.time() - t_r < 6.0 and rclpy.ok():
+            rclpy.spin_once(node, timeout_sec=0.0)
+            if node.stamp is None or (time.time() - node.stamp) > args.watchdog_s:
+                time.sleep(dt); continue
+            cmd_r = safety.clamp_step(cmd_r, up, max_step)
+            cmd_r = safety.clamp_to_workspace(cmd_r, aabb)
+            msg.data = [float(x) for x in adapter.pose_desired(cmd_r)]
+            node.pub.publish(msg)
+            if float(np.linalg.norm(node.ee - up)) < 0.006:
+                break
+            time.sleep(dt)
+        node.get_logger().info(f"retracted to ee_z={node.ee[2]:.4f}")
+
     try:
         while rclpy.ok():
             rclpy.spin_once(node, timeout_sec=0.0)
@@ -641,6 +686,23 @@ def run_ros(args):
                 node.pub.publish(msg)
 
             phase = out.next_phase
+
+            # RELEASE-ON-INSERT: the search just detected the drop into the bore
+            # (SEARCH_SPIRAL -> PUSH_INSERT). Open the gripper to leave the peg in
+            # the hole and retract empty, instead of the sustained seating push
+            # that builds force until the firmware reflex crashes the bringup.
+            if args.release_on_insert and st == "SEARCH_SPIRAL" and phase == "PUSH_INSERT":
+                node.get_logger().info(
+                    f"INSERTION DETECTED (z-drop, ee_z={ee[2]:.4f}) -> releasing peg")
+                emit_tel("PUSH_INSERT", cmd, ee, fz, outcome.baseline_fz, t,
+                         done=True, force=True)
+                if not args.dry_run:
+                    _open_gripper()
+                    _retract_up()
+                node.get_logger().info(
+                    "release-on-insert complete: peg left in hole, arm retracted.")
+                break
+
             if out.done:
                 node.get_logger().info(
                     f"sequence finished: state={phase} err={adapter.module.error}")
@@ -719,6 +781,21 @@ def build_parser():
     ap.add_argument("--max-press-depth", type=float, default=0.05)
     ap.add_argument("--insert-depth", type=float, default=0.03)
     ap.add_argument("--spiral-max-radius", type=float, default=0.012)
+
+    # release-on-insert: the moment the search detects the drop into the bore,
+    # open the gripper to LET GO of the peg (so the arm never builds the sustained
+    # seating force that trips the firmware reflex / crashes the bringup), then
+    # retract empty. Requires the franka_gripper node (launch gripper.launch.py).
+    ap.add_argument("--release-on-insert", action="store_true",
+                    help="on the SEARCH_SPIRAL->PUSH_INSERT drop, open the gripper to release "
+                         "the peg into the hole, then retract (skip the seating push)")
+    ap.add_argument("--gripper-ns", default="/panda_gripper",
+                    help="franka_gripper action namespace (Move action at <ns>/move)")
+    ap.add_argument("--gripper-open-width", type=float, default=0.08,
+                    help="gripper width (m) to open to when releasing the peg")
+    ap.add_argument("--gripper-speed", type=float, default=0.1)
+    ap.add_argument("--retract-after", type=float, default=0.06,
+                    help="straight-up retract (m) after releasing the peg")
 
     # safety
     ap.add_argument("--f-abort", type=float, default=20.0)
