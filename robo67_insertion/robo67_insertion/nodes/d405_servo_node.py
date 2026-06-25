@@ -57,7 +57,10 @@ class D405Servo(Node):
 
         cfg_path = self.get_parameter("config_path").value or _default_config_path()
         self.cfg = load_config(cfg_path)
-        self.device = int(self.cfg.camera.d405_color_device)
+        # Keep the raw device value (bare index OR /dev/v4l/by-id/... path);
+        # device_path() in grab_frame_gst() resolves either form. Only used in
+        # source="device"/"image"; in topic mode the camera_publisher owns it.
+        self.device = self.cfg.camera.d405_color_device
         self.depth_m = float(self.get_parameter("depth_m").value)
         self.gain = float(self.get_parameter("gain").value)
         self.jpeg_quality = int(self.cfg.camera.jpeg_quality)

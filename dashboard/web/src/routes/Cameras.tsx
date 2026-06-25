@@ -18,7 +18,7 @@ export function Cameras() {
           camId="c920"
           label={cam?.c920?.label ?? "C920 overhead"}
           kind={cam?.c920?.kind ?? "static-overhead"}
-          available={!!latest}
+          available={true}
           detection={c920}
           accent="#38bdf8"
           overlayCamId={cam?.c920?.overlay}
@@ -27,7 +27,7 @@ export function Cameras() {
           camId="d405"
           label={cam?.d405?.label ?? "D405 eye-in-hand"}
           kind={cam?.d405?.kind ?? "eye-in-hand"}
-          available={!!latest}
+          available={true}
           detection={d405}
           accent="#a78bfa"
           overlayCamId={cam?.d405?.overlay}

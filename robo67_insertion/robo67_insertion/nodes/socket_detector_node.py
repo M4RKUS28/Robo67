@@ -87,7 +87,15 @@ def _grab_frame_cv2(dev: str, width: int, height: int, exposure, warmup: int = 1
     manual modes overexpose -- so when an ``exposure`` lock is requested we select
     mode 3. A short warm-up lets auto-exposure settle before we keep a frame.
     """
+    import os
+
     import cv2
+
+    # cv2 can't open /dev/v4l/by-id/... symlinks in containers (no udev).
+    # Resolve to the real /dev/videoN node so VideoCapture can open it.
+    real = os.path.realpath(dev)
+    if os.path.exists(real):
+        dev = real
 
     for backend in (getattr(cv2, "CAP_V4L2", 200), getattr(cv2, "CAP_ANY", 0)):
         cap = cv2.VideoCapture(dev, backend)

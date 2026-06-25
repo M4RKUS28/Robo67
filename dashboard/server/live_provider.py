@@ -169,7 +169,7 @@ class LiveProvider:
                     topic = prov._t(attr, default)
                     self.create_subscription(
                         CompressedImage, topic,
-                        lambda msg, f=feed: prov._on_image(f, msg), 5)
+                        lambda msg, f=feed: self._on_image(f, msg), 5)
                 self.create_timer(1.0 / 30.0, self._publish)
 
             def _on_state(self, msg):
@@ -233,10 +233,19 @@ class LiveProvider:
         self._node = _Obs()
 
         def _spin():
-            try:
-                rclpy.spin(self._node)
-            except Exception:
-                pass
+            # Keep spinning even if a single callback raises: rclpy's default
+            # executor propagates a callback exception out of spin() and would
+            # otherwise leave the node permanently deaf (no camera/telemetry
+            # callbacks ever fire again). Log it and continue instead.
+            import traceback
+
+            while rclpy.ok() and not self._stop.is_set():
+                try:
+                    rclpy.spin_once(self._node, timeout_sec=0.1)
+                except Exception:
+                    print("[live_provider] callback error (continuing):",
+                          flush=True)
+                    traceback.print_exc()
 
         threading.Thread(target=_spin, name="ros-spin", daemon=True).start()
 

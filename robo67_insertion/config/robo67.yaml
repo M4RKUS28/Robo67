@@ -71,10 +71,14 @@ camera:
   # Verified 2026-06-25 (this session): by-id symlink below -> /dev/video6,
   # grabs 1280x720. RealSense D405 currently occupies /dev/video0-5.
   c920_device: /dev/v4l/by-id/usb-046d_HD_Pro_Webcam_C920_C26B1F5F-video-index0
-  # D405 (eye-in-hand) is also unstable; these are bare indices, re-check by-id
-  # before any D405 use (out of scope for the C920 overhead insertion path).
-  d405_color_device: 6
-  d405_depth_device: 2
+  # D405 (eye-in-hand) — by-id paths (stable per UVC stream, so the right index
+  # works on both host and container despite /dev/videoN renumbering). Verified
+  # 2026-06-25 inside multipanda-container: video-index2 is the COLOR stream
+  # (genuine chroma, streams continuously); index4 only yields one cold read
+  # then select()-times out. Using by-id also stops the old d405_color_device:6
+  # from stealing the C920's /dev/video6.
+  d405_color_device: /dev/v4l/by-id/usb-Intel_R__RealSense_TM__Depth_Camera_405_Intel_R__RealSense_TM__Depth_Camera_405_215123071253-video-index2
+  d405_depth_device: /dev/v4l/by-id/usb-Intel_R__RealSense_TM__Depth_Camera_405_Intel_R__RealSense_TM__Depth_Camera_405_215123071253-video-index0
   # Lock C920 to manual exposure: the white socket otherwise overexposes to flat
   # white and the bright-bore detector (detect_sockets) can't see it. ~40-120 OK.
   c920_exposure: 100
