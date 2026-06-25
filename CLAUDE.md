@@ -79,6 +79,37 @@ truth for the dashboard + `ros2 bag`). Full reference:
 - `fun/robot_dance.py` is a safe demo: it streams compliant eased offsets around the _current_ EE pose with hard speed/box/force clamps and an offline `--selftest`. It's an ~80 s routine ending in a 20 s "everything spins at once" finale that lands back at the anchor. It also has a **joint-limit guard** (reads measured `q` from `FrankaState`): it _refuses to start_ if any joint is within `--joint-preflight-margin` (default 0.15 rad) of its limit, and at runtime _backs the equilibrium off to the anchor_ whenever any joint comes within `--joint-guard-margin` (default 0.10 rad) of a limit. Lesson learned the hard way: cranking amplitude/speed past the clamps walked joint 2 onto its mechanical stop (`joint_position_limits_violation`), which the impedance controller cannot recover from (its startup transient re-trips the limit) — it needed a physical hand-guide. Keep hardware runs gentle (e.g. `--amp-scale 0.35 --v-max 0.15 --w-max 0.8`); the firmware joint-limit/force reflexes are the real, undisable-able guardrail.
 - **Domain-1 contamination (seen 2026-06-25):** a MuJoCo sim stack (`/mujoco_server`, `/mujoco_ros2_control`, `/panda_gripper_sim_node`) had leaked onto domain 1, so `FrankaState` was not getting through and `/controller_manager` services timed out even though `franka_control2_node` was alive and `/joint_states` flowed. Fix = the runbook clean restart with **`ROS_LOCALHOST_ONLY=1`** (isolates the graph; does NOT affect the libfranka TCP link to `192.168.1.67`). After that the real bringup connected cleanly and `FrankaState` was live. Prefer `ROS_LOCALHOST_ONLY=1` for real runs to avoid this. The `hardware_insertion_node` dry-run + `--nudge` + `scripts/hw_probe_contact.py` were all re-validated on the real arm via the subscriber path.
 
+## Automated insertion (real arm — verified end-to-end 2026-06-25)
+
+Full doc + problems-encountered + recovery table: [`docs/runbooks/automated-insertion.md`](docs/runbooks/automated-insertion.md).
+
+- **One command**: `hw_peg_in_hole_vision.py` perceives the socket (overhead C920)
+  then hands off to `hardware_insertion_node`: detect → MOVE_ABOVE → DESCEND_TO_CONTACT
+  → SEARCH_SPIRAL → **release-on-insert** (open gripper, leave peg in hole) → retract.
+- **Dashboard buttons**: live dashboard now has **Start insertion / Stop** in the
+  header (`dashboard/server/insertion_control.py` spawns/SIGINTs the runner;
+  `POST /api/insertion/{start,stop}`, `GET /api/insertion/status`). Start is
+  live-mode only and confirm-gated. Stop = SIGINT → node holds last pose.
+- **Verified param set** (keep in sync with the dashboard `DEFAULT_ARGS`):
+  `--pos-stiff 2000 --approach-tol 0.015 --press-force 18 --spiral-max-radius 0.02
+  --torque-abort 12 --release-on-insert --insert-drop-trigger 0.003`.
+- **Controller stiffness is now `pos_stiff 2000 / rot_stiff 50`** in
+  `single_controllers.yaml` (was 500/30). It is read **at activation only** — a
+  runtime `ros2 param set` does NOT change the live law; edit config + relaunch.
+  `--pos-stiff` MUST match (gap→force is `F/pos_stiff`; mismatch = big over-press).
+- **Vision feed = subscribe, don't open the device**: the script subscribes to
+  `/robo67/camera/overhead/image_raw/compressed` (`--source topic`, BEST_EFFORT
+  QoS) so it never fights `camera_publisher` for the V4L2 device.
+- **Gripper**: launch `franka_gripper gripper.launch.py` SEPARATELY (NOT
+  `load_gripper:=true`, which shifts the EE frame). If joint_states freeze ~1 Hz
+  at ~0.037 (open) while a peg is clamped → the gripper TCP link reset; relaunch
+  the gripper node (hardware keeps its grip).
+- **Soft-controller realities**: pure impedance, no integral/friction comp →
+  ~cm free-space deadband (overshoot/integral + `--tool-down` in `hw_move_to`
+  fixes positioning); the **sustained seating push trips the firmware reflex and
+  crashes the bringup** → that's why we release on the z-drop instead of pushing
+  home. Hand-guiding / SPoC changes crash the bringup; relaunch is the standard recovery.
+
 ## Runbook (How A Run Works)
 
 Use this exact sequence for a predictable real-arm run.

@@ -6,6 +6,7 @@ import { useHealth } from "../api/queries";
 import { useTelemetry } from "../state/TelemetryProvider";
 import { phaseMeta } from "../lib/phases";
 import { fmtClock } from "../lib/format";
+import { InsertionControl } from "./InsertionControl";
 
 const NAV = [
   { to: "/", label: "Overview", icon: Activity },
@@ -65,6 +66,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </nav>
+
+          {/* automated-insertion start / stop (live mode only) */}
+          <InsertionControl />
 
           {/* connection + mode */}
           <div className="flex items-center gap-2">

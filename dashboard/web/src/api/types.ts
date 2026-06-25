@@ -93,6 +93,15 @@ export interface Health {
   devices?: Record<string, number>;
 }
 
+export interface InsertionStatus {
+  enabled: boolean; // true only in live mode
+  running: boolean;
+  pid: number | null;
+  elapsed_s: number | null;
+  last_exit: number | null;
+  log: string[];
+}
+
 export interface PhaseInfo {
   id: string;
   label: string;

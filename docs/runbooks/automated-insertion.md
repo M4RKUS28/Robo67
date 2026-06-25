@@ -1,0 +1,212 @@
+# Automated peg-in-hole insertion — runbook
+
+End-to-end, one-command (or one-button) peg-in-hole insertion on the **real
+Franka**, verified live 2026-06-25. This documents how to start it, how to
+monitor it, the exact parameter set that works, and every problem we hit getting
+there (with the fix), plus the recovery runbook.
+
+```
+detect cube (overhead C920, via camera topic)
+   → move above (gentle, tool-down, software overshoot)
+   → descend to contact (force-probe the hole-top Z)
+   → spiral search under firm press
+   → peg dips below the hole-top  → OPEN GRIPPER (leave peg in hole) → retract
+```
+
+The runner is `robo67_insertion/scripts/hw_peg_in_hole_vision.py` (vision +
+CLI), which hands off to `robo67_insertion/nodes/hardware_insertion_node.py`
+(the insertion FSM + safety). The gripper is the real `franka_gripper`.
+
+---
+
+## 1. Quick start
+
+### From the dashboard (preferred)
+1. Bring up the logging/camera graph + dashboard (so the overhead feed is
+   published and the UI is up) — see §3.
+2. Open the dashboard (`http://127.0.0.1:8088`). Top-right: **Start insertion**
+   → **Confirm** (it commands the real arm). **Stop** cancels at any time.
+   - The button is **live-mode only**; in mock mode it shows `insertion · live-only`.
+   - Status chip shows `inserting · Ns` and the latest log line while running.
+
+### From the CLI (inside `multipanda-container`, ROS sourced, domain 1)
+```bash
+PYTHONPATH=/host/Code/Robo67/robo67_insertion \
+python3 robo67_insertion/scripts/hw_peg_in_hole_vision.py \
+  --socket-top-z 0.1465 \
+  --pos-stiff 2000 --approach-tol 0.015 \
+  --v-max 0.02 --standoff 0.05 \
+  --contact-fz 5 --press-force 18 \
+  --max-press-depth 0.05 --spiral-max-radius 0.02 \
+  --f-abort 30 --torque-abort 12 \
+  --release-on-insert --insert-drop-trigger 0.003 \
+  --gripper-open-width 0.08 --retract-after 0.06
+```
+Always `--dry-run` first (perceives the socket, prints the plan, publishes
+nothing). Add `--source device` only if no `camera_publisher` owns the C920.
+
+These are exactly the dashboard's `DEFAULT_ARGS`
+(`dashboard/server/insertion_control.py`). Keep the two in sync.
+
+---
+
+## 2. Prerequisites & one-time setup
+
+Run everything **inside `multipanda-container`** on `ROS_DOMAIN_ID=1`,
+`ROS_LOCALHOST_ONLY=1`, with `LD_LIBRARY_PATH` including libfranka. See the main
+`CLAUDE.md` runbook for the exact source/export lines.
+
+1. **Desk / FCI**: FCI must actually have control. Blue LED + a *usable* Desk UI
+   means **Desk holds control and FCI is locked out** → release Desk control,
+   then (re)launch so the FCI client acquires it (physical SPoC button tap if
+   prompted). See §4 problem #1.
+2. **Arm bringup** (auto-activates `cartesian_impedance_controller`):
+   ```bash
+   ros2 launch franka_bringup franka.launch.py robot_ip:=192.168.1.67 \
+       use_fake_hardware:=false arm_id:=panda
+   ```
+   Health: `robot_mode: 2` (Move) and `control_command_success_rate: 1.0` on
+   `/franka_robot_state_broadcaster/robot_state`. `1`/`0.0` = Idle, not engaged
+   → relaunch (§5).
+3. **Controller stiffness** = **`pos_stiff: 2000`, `rot_stiff: 50`** in
+   `franka_bringup/.../config/real/single_controllers.yaml` (we bumped from
+   500/30). The controller reads it **at activation only** — a runtime
+   `ros2 param set` does NOT change the live control law; you must edit the
+   config and relaunch. (`--pos-stiff 2000` MUST match, or the press math is
+   10× off.)
+4. **Gripper node** (separate launch — do NOT use `load_gripper:=true`, which
+   would re-load the hand and shift the EE frame, invalidating the homography):
+   ```bash
+   ros2 launch franka_gripper gripper.launch.py robot_ip:=192.168.1.67 \
+       arm_id:=panda use_fake_hardware:=false
+   ```
+   Confirm `/panda_gripper/move` exists and `/panda_gripper/joint_states` reads
+   ~`0.014`/finger (peg clamped) at ~15 Hz. A frozen ~1 Hz reading at ~`0.037`
+   = dead gripper connection → relaunch the gripper node (§5).
+5. **Logging/camera graph + dashboard** (so detection works off the topic and
+   the UI/Start button are available):
+   ```bash
+   ros2 launch robo67_insertion logging.launch.py socket_top_z:=0.1465
+   ./run_live.sh            # dashboard in live mode (subscribes only)
+   ```
+6. **Physical**: peg clamped in the gripper; **hole empty**; the white socket
+   cube **in the overhead C920's view** (centre-ish for best homography
+   accuracy); arm clear of the camera at start; a human at the e-stop.
+7. **Calibration**: `config/c920_homography.npz` present (overhead C920 → base
+   XY). Missing → run the calibration first; the script refuses to move.
+
+---
+
+## 3. What the parameters mean (and why these values)
+
+| Flag | Value | Why |
+|------|-------|-----|
+| `--pos-stiff` | 2000 | MUST equal the controller's `pos_stiff`. Sets the gap→force math (`gap=F/pos_stiff`) **and** the free-space deadband (~3.7 cm @500 → ~1.9 cm @2000). |
+| `--approach-tol` | 0.015 | MOVE_ABOVE "arrived" tolerance; must be ≥ the ~8 mm stiction deadband or the FSM stalls before descending. |
+| `--press-force` | 18 | Search press. Must beat the Z stiction deadband (~16 N) so the peg sits **on** the surface, not hovering ~1 mm above it. |
+| `--spiral-max-radius` | 0.02 | Cover detection (~5 mm) + deadband offset. |
+| `--torque-abort` | 12 | Moment abort (was hardcoded 5 in `ImpedanceSafetyProfile`). A constant peg-weight torque offset (~2.8 Nm) + lateral scrubbing ate the 5 Nm cap; 12 gives headroom. |
+| `--release-on-insert` | on | Open the gripper the instant the peg drops in — **avoids the sustained seating push that crashes the bringup**. |
+| `--insert-drop-trigger` | 0.003 | Release when EE z dips this far below the DESCEND `contact_z` hole-top. Direct + robust vs the FSM's rate-based z-drop. |
+| `--v-max` | 0.02 | Gentle command velocity. |
+| `--source` | topic (default) | Subscribe to `camera_publisher` (one owner, BEST_EFFORT QoS). No V4L2 contention. |
+
+---
+
+## 4. Problems encountered & fixes (chronological)
+
+1. **Robot Idle / `success_rate=0`, no motion despite commands.** Desk held
+   SPoC control (blue LED + usable Desk) → FCI locked out. **Fix:** release Desk
+   control + clean relaunch so the FCI client acquires control.
+2. **Move "twitch" — arm jumped to target.** `hw_move_to` stalled (EE-anchored
+   1 cm carrot too weak for the soft controller) then the hold-after published
+   the raw target in one tick. **Fix:** time-parameterised straight-line ramp
+   (constant slow command velocity), hold the *reached* pose (never the raw target).
+3. **~3.7 cm free-space positioning deadband + ~12° tool tilt.** Pure impedance,
+   no integral / no friction comp; joint stiction. **Fixes:** raised stiffness
+   (config + relaunch; runtime param is ignored), **software overshoot/integral**
+   in `hw_move_to` (push the equilibrium past target until the EE arrives), and
+   `--tool-down` (command vertical, yaw-preserving). → ~6 mm + vertical.
+4. **Insertion stalled in MOVE_ABOVE.** 6 mm hardcoded approach tol < 8 mm
+   deadband. **Fix:** exposed `--approach-tol`.
+5. **Spiral aborted on torque (~5 Nm).** Lateral scrubbing under press + a
+   constant peg-weight torque offset. The cap was hardcoded `_MOMENT_CAPS=5` in
+   `safety_envelope.py` (the node's `caps` var is nudge-only). **Fix:** made
+   `ImpedanceSafetyProfile.moment_cap_n` configurable, wired `--torque-abort`.
+6. **Bringup crashed during the sustained seating push** (`libfranka
+   NetworkException: UDP receive: Timeout`) — the firmware force reflex (the
+   un-catchable guardrail) tripping. **Fix:** `--release-on-insert` — open the
+   gripper on the drop and retract; never do the sustained push.
+7. **Gripper reads open (~7.5 cm) though the peg is clamped.** The gripper
+   node's TCP link to the hardware reset (`Connection reset by peer`), so its
+   joint state froze at ~1 Hz. **Fix:** relaunch the gripper node (the hardware
+   keeps its grip; relaunch reads the true width again).
+8. **Vision detection failed: "no frames from C920".** The `camera_publisher`
+   owns the V4L2 device; the script tried to open it directly. **Fix:** the
+   script now **subscribes** to `/robo67/camera/overhead/image_raw/compressed`
+   (`--source topic`, `qos_profile_sensor_data` to match BEST_EFFORT). A RELIABLE
+   subscriber gets nothing (QoS incompatible) — must be BEST_EFFORT.
+9. **Cube not detected — empty carpet in view.** The socket cube wasn't in the
+   overhead FOV. **Fix:** place it in view; exposure is auto-locked to 100 for
+   the overhead cam (config `c920_exposure`, `-1`→100).
+10. **Peg hovered ~1 mm above the hole during the spiral.** Search press too
+    light (8 N) vs the Z deadband → peg lifted off the surface. **Fix:** bump
+    `--press-force` to 18.
+11. **Peg clearly inserted but the gripper didn't open.** The FSM's rate-based
+    z-drop threshold was too strict for a gradual entry. **Fix:** `--insert-drop-trigger`
+    — recompute the hole-top from DESCEND `contact_z` and release as soon as the
+    EE dips below it.
+
+> **Recurring**: hand-guiding the arm and any control/SPoC change tend to crash
+> the bringup (NetworkException) or leave it Idle/Reflex — a **relaunch** is the
+> standard recovery. Keep moves gentle; the firmware joint-limit/force reflexes
+> are the real, undisable-able guardrail.
+
+---
+
+## 5. Recovery runbook
+
+| Symptom | Cause | Action |
+|---|---|---|
+| `robot_mode=1` (Idle), `success_rate=0`, no motion | control not engaged (after stop/reflex/Desk) | **relaunch** `franka.launch.py` (error_recovery alone is not enough) |
+| `robot_mode=4` (Reflex) | firmware reflex tripped | relaunch (or `hw_recover.py` then relaunch if still Idle) |
+| `robot_mode=3` (Guiding) | guiding buttons engaged / hand-guided | release guiding → it usually crashes the bringup → relaunch |
+| `robot_mode=5` (UserStopped) | e-stop pressed | release the e-stop → relaunch |
+| bringup process gone / `NetworkException` in launch log | firmware reflex / SPoC change crashed `franka_control2` | kill stragglers + relaunch |
+| gripper open ~7.5 cm but peg is clamped, joint_states ~1 Hz frozen | gripper TCP link reset | relaunch the **gripper node** only |
+| detection "no frames from C920" | `camera_publisher` owns the device | use `--source topic` (default); ensure the camera feed is publishing |
+| detection "no socket detected" | cube out of FOV / wrong exposure | place cube in overhead view; exposure auto-locks to 100 |
+| `Stop` from the dashboard | — | sends SIGINT → the node holds its last pose; SIGKILL if it doesn't exit |
+
+Clean relaunch:
+```bash
+pkill -f "franka.launch.py|franka_control2_node|ros2_control_node|controller_manager" || true
+ros2 launch franka_bringup franka.launch.py robot_ip:=192.168.1.67 \
+    use_fake_hardware:=false arm_id:=panda
+```
+
+---
+
+## 6. Monitoring
+
+- **Dashboard** (`run_live.sh`, live mode): phase, EE/cmd pose, speed, wrench,
+  Fz vs baseline, contact, retries — all from `/robo67/insertion/*`. The Start/Stop
+  control + run status (elapsed + latest log line) live in the header.
+- **Telemetry topics** (`hardware_insertion_node`, ~20 Hz): `/robo67/insertion/{phase,
+  ee_pose,ee_speed,command_pose,wrench,fz,fz_baseline,contact,retries,diagnostics}`.
+- **Console / process log**: the CLI prints phase transitions and the release
+  (`INSERTION DETECTED (ee_z=… < hole-top … - …) -> releasing peg` → `gripper
+  opened` → `retracted`). The dashboard captures the same in its status `log`.
+- **Healthy run** ends with `release-on-insert complete: peg left in hole, arm
+  retracted.` and the arm back in `Move`, gripper open above the socket.
+
+## 7. Dashboard control internals
+
+- `dashboard/server/insertion_control.py` — `InsertionController` spawns the
+  runner as a subprocess (own process group), ring-buffers stdout, one run at a
+  time. `start()` is **live-mode only**. `stop()` sends **SIGINT** to the group
+  (the node's interrupt handler holds the last pose), escalating to SIGKILL.
+- `dashboard/server/serve.py` — `POST /api/insertion/start`, `POST
+  /api/insertion/stop`, `GET /api/insertion/status`.
+- `dashboard/web/src/components/InsertionControl.tsx` — the header Start/Stop
+  buttons + status, polling `/api/insertion/status` at 1 Hz.

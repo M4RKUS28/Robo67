@@ -66,6 +66,9 @@ class Handler(BaseHTTPRequestHandler):
     def _provider(self):
         return self.server.provider  # type: ignore[attr-defined]
 
+    def _insertion(self):
+        return self.server.insertion  # type: ignore[attr-defined]
+
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
 
@@ -88,11 +91,32 @@ class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
         self._cors()
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "*")
         self.send_header("Content-Length", "0")
         self.send_header("Connection", "close")
         self.end_headers()
+
+    def do_POST(self):
+        path = urlparse(self.path).path
+        try:
+            # drain any request body (we don't require params; defaults are the
+            # verified-live set)
+            n = int(self.headers.get("Content-Length", 0) or 0)
+            if n:
+                self.rfile.read(n)
+            if path == "/api/insertion/start":
+                return self._send_json(self._insertion().start())
+            if path == "/api/insertion/stop":
+                return self._send_json(self._insertion().stop())
+            return self._send_json({"error": "not found", "path": path}, status=404)
+        except (BrokenPipeError, ConnectionResetError):
+            return
+        except Exception as exc:  # noqa: BLE001
+            try:
+                self._send_json({"error": str(exc)}, status=500)
+            except Exception:
+                pass
 
     def do_GET(self):
         path = urlparse(self.path).path
@@ -101,6 +125,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json(self._provider().health())
             if path == "/api/config":
                 return self._send_json(self._provider().config())
+            if path == "/api/insertion/status":
+                return self._send_json(self._insertion().status())
             if path == "/api/stream":
                 return self._stream_sse()
             if path.startswith("/api/cam/"):
@@ -241,15 +267,21 @@ def main(argv=None):
     provider = build_provider(args)
     provider.start()
 
+    from insertion_control import InsertionController
+
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     httpd.daemon_threads = True
     httpd.provider = provider  # type: ignore[attr-defined]
+    # The Start button spawns the real-arm insertion -> live mode only.
+    httpd.insertion = InsertionController(enabled=(args.mode == "live"))  # type: ignore[attr-defined]
 
     web = "serving built SPA from web/dist" if os.path.isdir(WEB_DIST) else \
         "no built SPA (use Vite dev server)"
     print(f"[robo67-dashboard] mode={args.mode}  http://{args.host}:{args.port}  ({web})")
-    print(f"[robo67-dashboard]   GET /api/health  /api/config  /api/stream  "
-          f"/api/cam/c920  /api/cam/d405")
+    print(f"[robo67-dashboard]   GET  /api/health  /api/config  /api/stream  "
+          f"/api/cam/c920  /api/cam/d405  /api/insertion/status")
+    print(f"[robo67-dashboard]   POST /api/insertion/start  /api/insertion/stop  "
+          f"(live mode only)")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
