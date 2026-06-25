@@ -9,6 +9,51 @@
 
 ---
 
+## BUILD STATUS (updated 2026-06-25, later session)
+
+The `robo67_insertion` ROS 2 package is **scaffolded, implemented, and sim-validated** for the
+software path. Commits are on `jearningers`.
+
+**DONE / working:**
+- ROS 2 ament_python package `robo67_insertion/` (config schema + `config/robo67.yaml`).
+- **7 pure-logic libs, TDD, 68 host tests green:** `geometry, hole_detect, spiral, wrench, safety,
+  servoing, insertion_fsm` (built in parallel by a subagent swarm).
+- ROS nodes: `insertion_orchestrator` (validated end-to-end in sim), `socket_detector`,
+  `calibration` (offline fit + tests), `d405_servo`. Launch: `sim.launch.py`, `hardware.launch.py`.
+- Sim bring-up scripts + the **verified interface names** in `robo67_insertion/PHASE0_VERIFIED.md`
+  (READ THIS — it has the real names + every gotcha below).
+- Detailed plan in `docs/superpowers/plans/2026-06-25-peg-in-hole-insertion.md`.
+
+**Sim-validated (plumbing/logic only — by design):** controller activation, 50 Hz
+`CartesianImpedanceGoal` streaming accepted by the controller, `FrankaState` parsing, FSM stepping,
+safety clamps, contact-stiffness switch. Two real bugs found+fixed: the controller **discards
+desired poses >0.1 m from current** (clamp the command as a lead off the *actual* EE, `max_lead_m<0.1`),
+and **never `spin_until_future_complete` inside a callback** (deadlock; stiffness is fire-and-forget).
+
+**Gotchas discovered (all in PHASE0_VERIFIED.md):** `set_controllers` is namespaced
+(`/multi_mode_controller/set_controllers`); robot_state is `/franka_robot_state_broadcaster/robot_state`;
+`LD_LIBRARY_PATH` needs mujoco+libfranka; the sim launch only spawns `joint_state_broadcaster` (spawn
+MMC + state broadcaster manually); the **sim boots PAUSED** (unpause via `/set_pause`); `o_f_ext_hat_k`
+is **zero in sim** (force/contact is a HARDWARE-only validation).
+
+**BLOCKERS / NOT done (need a free arm + a few fixes):**
+1. **The real arm is in use by another session** — `franka.launch.py robot_ip:=192.168.1.67` (PID seen
+   in-container) was running. That bringup **lives in the `multipanda-container`**, so the container
+   **must NOT be restarted** while it's active. Honor the single-arm mutex.
+2. **Container vision gaps:** the container's `cv2` is NumPy-2 ABI-incompatible (install a
+   numpy-2-compatible `opencv-python(-headless)>=4.10`), and **cameras are not passed through** to the
+   container (`/dev/video8` absent inside). Fix needs either container restart with `--device` mounts
+   (coordinate — kills the in-container arm session) or a **host-side frame grabber** (GStreamer works
+   on the host) writing to the shared `/host` mount for the detector to read (`image_path` mode).
+3. **Hardware phases 4–7 not started:** C920 calibration on the arm, milestone A insertion tuning
+   (real `o_f_ext_hat_k` thresholds + contact stiffness), then B (repeatable) and C (grasp).
+
+**Next-agent quickstart:** read `PHASE0_VERIFIED.md`; `sim_bringup.sh` + `activate_cartesian.sh` to get
+a working sim on an isolated `ROS_DOMAIN_ID`; run the orchestrator; then tackle the camera bridge and
+hardware phases when the arm is free.
+
+---
+
 ## 0. TL;DR — what we are building
 
 A **classical vision + force** peg-in-hole insertion system for the **Franka Emika Panda**, driven
