@@ -110,6 +110,33 @@ R_DOWN = [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]]
 DEFAULT_ANCHOR_P = (0.40, 0.0, 0.45)
 
 # ----------------------------------------------------------------------------
+# Joint-limit guard. The choreography commands Cartesian poses, so it has no
+# direct knowledge of how an offset maps to joint angles -- a wild move can walk
+# a joint into its hard limit and trip the firmware reflex (which can leave a
+# joint parked on its mechanical stop). This guard watches the *measured* joint
+# angles from FrankaState and (a) refuses to start if the anchor pose is already
+# near a joint limit, and (b) at runtime backs the equilibrium off to the anchor
+# whenever any joint gets within `--joint-guard-margin` rad of its limit.
+# Panda joint limits (rad).
+# ----------------------------------------------------------------------------
+PANDA_Q_MIN = [-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973]
+PANDA_Q_MAX = [ 2.8973,  1.7628,  2.8973, -0.0698,  2.8973,  3.7525,  2.8973]
+
+def joint_margin(q):
+    """Smallest distance (rad) from any joint to its nearer limit. Returns +inf
+    when joint angles are unknown (no state) so the guard simply stays inert."""
+    if not q or len(q) < 7:
+        return float("inf")
+    return min(min(q[i] - PANDA_Q_MIN[i], PANDA_Q_MAX[i] - q[i]) for i in range(7))
+
+def worst_joint(q):
+    """Index (1-based) of the joint nearest its limit, or 0 if unknown."""
+    if not q or len(q) < 7:
+        return 0
+    m = [min(q[i] - PANDA_Q_MIN[i], PANDA_Q_MAX[i] - q[i]) for i in range(7)]
+    return m.index(min(m)) + 1
+
+# ----------------------------------------------------------------------------
 # Easing helpers -- all start and end with ~zero velocity for smooth motion.
 # ----------------------------------------------------------------------------
 
@@ -210,6 +237,27 @@ def _return(t, dur):
     s = smoothstep(t / dur)
     return (0.0, 0.0, HOVER_DZ * (1.0 - s)), (0.0, 0.0, 0.0)
 
+def _finale(t, dur):
+    """Grand finale: orbit + roll + pitch + yaw ALL rotating at once, then land.
+    Window-enveloped so it starts at the hover pose (continuous with the prior
+    segment) and lands back at the anchor over the final ~20%. Amplitudes are
+    deliberately over the caps -- the SafetyLimiter clamps speed, so the motion
+    is as crazy as the hardware safely allows."""
+    x = t / dur
+    w = window(x)
+    f = 0.6
+    a = 2 * math.pi * f * t
+    dx = 0.14 * w * math.cos(a)
+    dy = 0.14 * w * math.sin(a)
+    dz = 0.07 * w * math.sin(2 * a)
+    # base hover height eases back down to the anchor over the final ~20%.
+    land = smoothstep((x - 0.8) / 0.2) if x > 0.8 else 0.0
+    base_z = HOVER_DZ * (1.0 - land)
+    roll = 0.70 * w * math.sin(a)
+    pitch = 0.70 * w * math.cos(a)
+    yaw = 0.70 * w * math.sin(2 * a)
+    return (dx, dy, base_z + dz), (roll, pitch, yaw)
+
 # One breakdance cycle (~64 s), repeated to fill the routine.
 _CYCLE = [
     ("windmill",   10.0, _windmill),
@@ -222,14 +270,15 @@ _CYCLE = [
     ("freeze",      5.0, _freeze),
 ]
 
-def build_segments(total=360.0):
-    """Intro (settle/rise/wave) -> breakdance cycle on repeat -> outro (return),
-    sized to about `total` seconds, all at the normal pace."""
+def build_segments(total=80.0, finale_dur=20.0):
+    """Intro (settle/rise/wave) -> breakdance cycle on repeat -> grand finale,
+    sized to about `total` seconds at the normal pace. The final `finale_dur`
+    seconds are the all-axis crazy finish (roll+pitch+yaw together) that also
+    lands the arm back at the anchor."""
     intro = [("settle", 2.0, _settle), ("rise", 3.0, _rise), ("wave hello", 5.0, _wave)]
-    outro_dur = 3.0
     segs = list(intro)
     acc = sum(d for _, d, _ in intro)
-    budget = total - outro_dur
+    budget = total - finale_dur
     i = 0
     while acc < budget - 0.5:
         name, dur, fn = _CYCLE[i % len(_CYCLE)]
@@ -238,11 +287,12 @@ def build_segments(total=360.0):
         segs.append((name, dur, fn))
         acc += dur
         i += 1
-    segs.append(("return", outro_dur, _return))
+    segs.append(("FINALE (everything spins!)", finale_dur, _finale))
     return segs
 
-# ~360 s of breakdance, at the normal pace (override with --time-scale/--amp-scale).
-SEGMENTS = build_segments(360.0)
+# 80 s routine: ~60 s of breakdance + a 20 s grand finale where everything spins
+# at once (override pace with --time-scale/--amp-scale).
+SEGMENTS = build_segments(80.0, 20.0)
 
 
 def choreography(t, time_scale=1.0, amp_scale=1.0):
@@ -451,12 +501,15 @@ def run_ros(args):
             self.anchor_p = None
             self.anchor_R = None
             self.q_n = [0.0] * 7
+            self.q = []                   # live joint angles (joint-limit guard)
+            self._guarding = False        # joint-limit guard engaged?
             self._got_state = False
             if FrankaState is not None and not args.assume_home:
                 self.sub = self.create_subscription(
                     FrankaState, args.state_topic, self._on_state, 10)
 
         def _on_state(self, msg):
+            self.q = [float(v) for v in msg.q]   # live, every message (guard)
             if self._got_state:
                 return
             m = list(msg.o_t_ee)          # 4x4 column-major
@@ -499,6 +552,23 @@ def run_ros(args):
         f"Motion stays within +/-{SafetyLimiter.DX} m of anchor, "
         f"speed <= {args.v_max} m/s. Publishing to {args.topic} ({pub_mode}).")
 
+    # --- joint-limit guard pre-flight: refuse to dance from a near-limit pose ---
+    m0 = joint_margin(node.q)
+    if m0 == float("inf"):
+        node.get_logger().warn(
+            "Joint-limit guard INACTIVE: no joint angles available (assume-home / "
+            "no FrankaState). Cartesian clamps still apply.")
+    elif m0 < args.joint_preflight_margin:
+        node.get_logger().error(
+            f"Joint-limit guard: min joint margin {m0:.3f} rad (joint {worst_joint(node.q)}) "
+            f"< preflight {args.joint_preflight_margin:.3f} rad. Refusing to dance -- the arm "
+            f"is too close to a joint limit. Hand-guide it to a central/upright pose first.")
+        node.destroy_node(); rclpy.shutdown(); return 1
+    else:
+        node.get_logger().info(
+            f"Joint-limit guard armed: min joint margin {m0:.3f} rad (joint {worst_joint(node.q)}), "
+            f"back-off at {args.joint_guard_margin:.3f} rad.")
+
     if args.confirm:
         try:
             if input("Area clear, e-stop in hand? Type YES to dance: ").strip() != "YES":
@@ -531,6 +601,20 @@ def run_ros(args):
                 if name != last_name:
                     node.get_logger().info(f"-> {name}")
                     last_name = name
+                # --- joint-limit guard: back off to the anchor near any limit ---
+                mj = joint_margin(node.q)
+                if node._guarding:
+                    if mj > args.joint_guard_margin + 0.03:   # hysteresis
+                        node._guarding = False
+                        node.get_logger().info(
+                            f"   joint-limit guard released (margin {mj:.3f} rad), resuming")
+                elif mj < args.joint_guard_margin:
+                    node._guarding = True
+                    node.get_logger().warn(
+                        f"   joint-limit guard: margin {mj:.3f} rad (joint {worst_joint(node.q)}) "
+                        f"-> holding at anchor")
+                if node._guarding:
+                    dp, rpy = (0.0, 0.0, 0.0), (0.0, 0.0, 0.0)
                 data, _ = lim.target(dp, rpy)
                 if pub_mode == "cart_goal":
                     px, py, pz = data[0], data[1], data[2]
@@ -589,6 +673,12 @@ def build_parser():
                    help="hard linear speed cap (m/s)")
     p.add_argument("--w-max", type=float, default=2.0,
                    help="hard angular speed cap (rad/s)")
+    p.add_argument("--joint-guard-margin", type=float, default=0.10,
+                   help="joint-limit guard: back off to the anchor whenever any joint is "
+                        "within this many rad of its limit (0 disables the runtime back-off)")
+    p.add_argument("--joint-preflight-margin", type=float, default=0.15,
+                   help="joint-limit guard: refuse to start if any joint is within this many "
+                        "rad of its limit at the anchor pose")
     p.add_argument("--countdown", type=int, default=3)
     p.add_argument("--state-timeout", type=float, default=5.0)
     p.add_argument("--loop", action="store_true")
