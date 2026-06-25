@@ -105,23 +105,43 @@ class Mover(Node):
     def tool_down(self):
         return float(np.dot(quat_to_R(self.ee_quat)[:, 2], [0, 0, -1]))
 
-    def move_to(self, target, hold_quat, speed=0.04, tol=0.006, timeout=40.0, rate=50.0):
-        """Carrot toward target until within tol. Returns True if reached."""
+    def move_to(self, target, hold_quat, speed=0.015, tol=0.006, timeout=90.0,
+                rate=50.0, min_duration=1.0):
+        """Drive the equilibrium along a straight line to ``target`` at constant ``speed``.
+
+        Instead of a carrot anchored a fixed lead ahead of the EE (which on the
+        soft subscriber impedance controller either stalls -- too little force --
+        or, if handed the raw target, twitches there in one step), the commanded
+        equilibrium is TIME-PARAMETERISED:
+
+            sp(t) = start + alpha * (target - start),  alpha = clamp(t / T, 0, 1)
+            T     = max(min_duration, dist / speed)
+
+        so the setpoint walks the line at a true, predictable command velocity
+        (``speed`` m/s) and the arm tracks a gentle ramp. Returns True once the
+        trajectory completes and the EE is within ``tol``.
+        """
         target = np.asarray(safety.clamp_to_workspace(list(target), WORKSPACE_AABB), float)
         dt = 1.0 / rate
-        lead = min(MAX_LEAD_M, max(0.01, speed / rate * 10))  # lead ~ speed-scaled, capped
+
+        # anchor the trajectory at the current measured EE
+        while self.ee_xyz is None:
+            rclpy.spin_once(self, timeout_sec=dt)
+        start = self.ee_xyz.copy()
+        dist = float(np.linalg.norm(target - start))
+        T = max(min_duration, dist / max(1e-4, speed))
+
         t0 = time.time()
-        ee_ref = None
-        no_motion_t0 = None
+        ee_ref = start.copy()
+        no_motion_t0 = time.time()
         reflex_retries = 0
         last_log = 0.0
+        print(f"  [move] straight-line {[round(v,3) for v in start]} -> "
+              f"{[round(v,3) for v in target]}  dist={dist:.3f}m speed={speed} m/s T={T:.1f}s")
         while time.time() - t0 < timeout:
             rclpy.spin_once(self, timeout_sec=dt)
             if self.ee_xyz is None:
                 continue
-            if ee_ref is None:
-                ee_ref = self.ee_xyz.copy()
-                no_motion_t0 = time.time()
             now = self.get_clock().now().nanoseconds * 1e-9
             if self.stamp is None or now - self.stamp > WATCHDOG_S:
                 print("  [move] state stale -> holding"); continue
@@ -134,12 +154,19 @@ class Mover(Node):
                 print("  [move] reflex persists -> abort"); return False
             if abs(self.wrench[2]) > FZ_ABORT_N:
                 print(f"  [move] FORCE ABORT Fz={self.wrench[2]:.1f}"); return False
-            err = target - self.ee_xyz
-            if np.linalg.norm(err) < tol:
+
+            te = time.time() - t0
+            alpha = min(1.0, te / T)
+            sp = start + alpha * (target - start)
+            sp = safety.clamp_to_workspace(list(sp), WORKSPACE_AABB)
+            self.publish(sp, hold_quat)
+
+            err = float(np.linalg.norm(target - self.ee_xyz))
+            if alpha >= 1.0 and err < tol:
                 self.publish(target, hold_quat)
                 return True
-            # If setpoints are being streamed but the EE does not move at all,
-            # fail fast with a clear diagnosis instead of timing out ambiguously.
+            # catch a wholly-ignored command path (controller not actuating):
+            # the moving setpoint should drag the EE; if it never budges, abort.
             if np.linalg.norm(self.ee_xyz - ee_ref) < NO_MOTION_EPS_M:
                 if time.time() - no_motion_t0 > NO_MOTION_ABORT_S:
                     print(f"  [move] NO MOTION: command path ignored (cmd_mode={self.cmd.mode}). Check FCI/SPoC and controller path.")
@@ -147,20 +174,18 @@ class Mover(Node):
             else:
                 ee_ref = self.ee_xyz.copy()
                 no_motion_t0 = time.time()
-            sp = safety.clamp_to_workspace(list(target), WORKSPACE_AABB)
-            sp = safety.clamp_step(self.ee_xyz, sp, lead)
-            self.publish(sp, hold_quat)
             if time.time() - last_log >= 0.5:
                 last_log = time.time()
-                print(f"  [move] ee={[round(v,3) for v in self.ee_xyz]} -> tgt={[round(v,3) for v in target]} "
-                      f"d={np.linalg.norm(err):.3f} Fz={self.wrench[2]:.1f} mode={self.mode}")
+                print(f"  [move] a={alpha:.2f} ee={[round(v,3) for v in self.ee_xyz]} "
+                      f"sp={[round(v,3) for v in sp]} d={err:.3f} Fz={self.wrench[2]:.1f} mode={self.mode}")
         print("  [move] timeout"); return False
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--xyz", type=float, nargs=3, required=True)
-    ap.add_argument("--speed", type=float, default=0.04)
+    ap.add_argument("--speed", type=float, default=0.015,
+                    help="straight-line command velocity (m/s); kept gentle by default")
     ap.add_argument("--trans", type=float, default=500.0)
     ap.add_argument("--rot", type=float, default=30.0)
     ap.add_argument("--hold-after-s", type=float, default=1.5)
@@ -176,10 +201,14 @@ def main():
     print(f"[move_to] start ee={[round(v,4) for v in n.ee_xyz]} tool_down={round(n.tool_down(),3)} -> {args.xyz} cmd_mode={n.cmd.mode}")
     n.set_stiffness(args.trans, args.rot)
     ok = n.move_to(np.array(args.xyz), hold_quat, speed=args.speed)
+    # Hold the pose we actually reached (publish the measured EE as the
+    # equilibrium) -- NEVER re-publish the raw target, which would step the soft
+    # controller to it in one tick and twitch the arm.
+    hold_xyz = n.ee_xyz.copy()
     t0 = time.time()
     while time.time() - t0 < args.hold_after_s:
         rclpy.spin_once(n, timeout_sec=0.02)
-        n.publish(np.array(args.xyz), hold_quat)
+        n.publish(hold_xyz, hold_quat)
     print(f"[move_to] reached={ok} final ee={[round(v,4) for v in n.ee_xyz]} tool_down={round(n.tool_down(),3)} mode={n.mode}")
     n.destroy_node()
     rclpy.shutdown()
