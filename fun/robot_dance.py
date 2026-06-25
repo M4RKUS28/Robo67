@@ -114,43 +114,102 @@ def _wave(t, dur):
     dy = 0.05 * w * math.sin(2 * math.pi * f * t)
     return (0.0, dy, HOVER_DZ), (roll, 0.0, 0.0)
 
+# ---------------------------------------------------------------------------
+# Breakdance moves. Each is window-enveloped so it begins and ends at the hover
+# pose -> every segment seam stays continuous. Amplitudes/frequencies are tuned
+# to peak ~0.35 m/s and ~1.9 rad/s, just under the SafetyLimiter caps, so the
+# motion is wild but still crisp (the limiter clamps anything that isn't).
+# ---------------------------------------------------------------------------
+
 def _groove(t, dur):
     w = window(t / dur)
     f1 = 0.35
-    dx = 0.04 * w * math.sin(2 * math.pi * f1 * t + math.pi / 2)
-    dy = 0.11 * w * math.sin(2 * math.pi * f1 * t)
+    dx = 0.06 * w * math.sin(2 * math.pi * f1 * t + math.pi / 2)
+    dy = 0.12 * w * math.sin(2 * math.pi * f1 * t)
     dz = 0.05 * w * math.sin(2 * math.pi * (2 * f1) * t)      # figure-8 in y-z
-    yaw = 0.22 * w * math.sin(2 * math.pi * f1 * t)
-    pitch = 0.13 * w * math.sin(2 * math.pi * (2 * f1) * t)
+    yaw = 0.30 * w * math.sin(2 * math.pi * f1 * t)
+    pitch = 0.18 * w * math.sin(2 * math.pi * (2 * f1) * t)
     return (dx, dy, HOVER_DZ + dz), (0.0, pitch, yaw)
 
-def _bow(t, dur):
-    g = window(t / dur)                                       # 0 -> 1 -> 0
-    pitch = 0.40 * g
-    dz = HOVER_DZ - 0.06 * g
-    return (0.0, 0.0, dz), (0.0, pitch, 0.0)
+def _windmill(t, dur):
+    w = window(t / dur); f = 0.40
+    a = 2 * math.pi * f * t
+    return (0.15 * w * math.cos(a), 0.15 * w * math.sin(a), HOVER_DZ), \
+           (0.55 * w * math.sin(a), 0.35 * w * math.cos(a), 0.0)
 
-def _finale_wave(t, dur):
-    w = window(t / dur)
-    f = 0.7
-    roll = 0.40 * w * math.sin(2 * math.pi * f * t)
-    dy = 0.05 * w * math.sin(2 * math.pi * f * t)
-    return (0.0, dy, HOVER_DZ), (roll, 0.0, 0.0)
+def _spin(t, dur):
+    w = window(t / dur); f = 0.50
+    yaw = 0.60 * w * math.sin(2 * math.pi * f * t)
+    dz = 0.06 * w * math.sin(2 * math.pi * 2 * f * t)
+    return (0.0, 0.0, HOVER_DZ + dz), (0.0, 0.0, yaw)
+
+def _pop(t, dur):
+    w = window(t / dur); f = 0.55
+    dz = 0.10 * w * math.sin(2 * math.pi * f * t)
+    pitch = 0.45 * w * math.sin(2 * math.pi * f * t)
+    return (0.0, 0.0, HOVER_DZ + dz), (0.0, pitch, 0.0)
+
+def _slide(t, dur):
+    w = window(t / dur); f = 0.40
+    dx = 0.15 * w * math.sin(2 * math.pi * f * t)
+    roll = 0.45 * w * math.sin(2 * math.pi * f * t + math.pi / 2)
+    return (dx, 0.0, HOVER_DZ), (roll, 0.0, 0.0)
+
+def _headspin(t, dur):
+    w = window(t / dur); f = 0.55
+    a = 2 * math.pi * f * t
+    return (0.07 * w * math.cos(a), 0.07 * w * math.sin(a),
+            HOVER_DZ + 0.03 * w * math.sin(2 * a)), \
+           (0.0, 0.0, 0.55 * w * math.sin(a))
+
+def _worm(t, dur):
+    w = window(t / dur); f = 0.45
+    dy = 0.11 * w * math.sin(2 * math.pi * f * t)
+    dz = 0.04 * w * math.sin(2 * math.pi * 2 * f * t)
+    pitch = 0.50 * w * math.sin(2 * math.pi * f * t + math.pi / 2)
+    return (0.0, dy, HOVER_DZ + dz), (0.0, pitch, 0.0)
+
+def _freeze(t, dur):
+    g = window(t / dur)                                       # tilt-and-hold
+    return (0.10 * g, 0.0, HOVER_DZ), (0.60 * g, 0.30 * g, 0.0)
 
 def _return(t, dur):
     s = smoothstep(t / dur)
     return (0.0, 0.0, HOVER_DZ * (1.0 - s)), (0.0, 0.0, 0.0)
 
-# (name, duration_seconds, function)
-SEGMENTS = [
-    ("settle",       2.0, _settle),
-    ("rise",         3.0, _rise),
-    ("wave hello",   7.0, _wave),
-    ("groove",      12.0, _groove),
-    ("bow",          4.0, _bow),
-    ("wave goodbye", 5.0, _finale_wave),
-    ("return",       3.0, _return),
+# One breakdance cycle (~64 s), repeated to fill the routine.
+_CYCLE = [
+    ("windmill",   10.0, _windmill),
+    ("spin",        8.0, _spin),
+    ("pop",         6.0, _pop),
+    ("groove",      9.0, _groove),
+    ("slide",       8.0, _slide),
+    ("headspin",   10.0, _headspin),
+    ("worm",        8.0, _worm),
+    ("freeze",      5.0, _freeze),
 ]
+
+def build_segments(total=360.0):
+    """Intro (settle/rise/wave) -> breakdance cycle on repeat -> outro (return),
+    sized to about `total` seconds, all at the normal pace."""
+    intro = [("settle", 2.0, _settle), ("rise", 3.0, _rise), ("wave hello", 5.0, _wave)]
+    outro_dur = 3.0
+    segs = list(intro)
+    acc = sum(d for _, d, _ in intro)
+    budget = total - outro_dur
+    i = 0
+    while acc < budget - 0.5:
+        name, dur, fn = _CYCLE[i % len(_CYCLE)]
+        if acc + dur > budget:
+            dur = round(budget - acc, 3)
+        segs.append((name, dur, fn))
+        acc += dur
+        i += 1
+    segs.append(("return", outro_dur, _return))
+    return segs
+
+# ~360 s of breakdance, at the normal pace (override with --time-scale/--amp-scale).
+SEGMENTS = build_segments(360.0)
 
 
 def choreography(t, time_scale=1.0, amp_scale=1.0):
