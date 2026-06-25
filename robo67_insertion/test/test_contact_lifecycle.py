@@ -87,3 +87,27 @@ class TestContactDetection:
         # deviation measured from the frozen baseline, not from zero
         assert mod.observe("insert", 12.0).contact_detected is False
         assert mod.observe("insert", 15.0).contact_detected is True
+
+
+class TestInputValidation:
+    def test_negative_threshold_raises(self):
+        with pytest.raises(ValueError):
+            ContactLifecycleModule(threshold_n=-1.0, alpha=0.1, initial=0.0)
+
+    def test_zero_threshold_allowed(self):
+        # zero is a degenerate but valid threshold (every sample is contact).
+        mod = ContactLifecycleModule(threshold_n=0.0, alpha=0.1, initial=0.0)
+        assert mod.observe("insert", 0.0).contact_detected is True
+
+    def test_unknown_mode_raises(self):
+        mod = ContactLifecycleModule(threshold_n=5.0, alpha=0.1, initial=0.0)
+        with pytest.raises(ValueError):
+            mod.observe("bogus_mode", 0.0)
+
+    @pytest.mark.parametrize(
+        "mode", ("free_space", "contact_search", "insert", "confirm")
+    )
+    def test_known_modes_do_not_raise(self, mode):
+        mod = ContactLifecycleModule(threshold_n=5.0, alpha=0.1, initial=0.0)
+        # must not raise for any documented ContactMode
+        mod.observe(mode, 1.0)

@@ -100,33 +100,65 @@ class ImpedanceCommand:
 class MMCCommandPathAdapter:
     """Adapt canonical intent to the MMC (sim) command path.
 
+    This is the SINGLE source of MMC command shaping: it turns each absolute
+    canonical target into a per-tick carrot that ramps DOWN a few millimetres
+    from the MEASURED EE while descending and pressing. The MMC controller
+    discards setpoints far from the current pose, and the node's safety step
+    clamp only engages past ``max_lead_m`` -- so the ramp (not the clamp) is
+    what keeps DESCEND/PUSH gentle. :class:`~robo67_insertion.lib.insertion_fsm.InsertionFSM`
+    delegates to this adapter so the shim and the orchestrator share one shaping.
+
     Args:
         socket_xyz: Socket TOP center in the base frame, shape (3,).
         params: Canonical :class:`IntentParams`.
         down_quat: Fixed tool-down orientation quaternion (xyzw) to hold.
-        push_step_m: Light downward press bias used while searching so the
-            lead-clamped carrot keeps gentle contact.
+        descend_step_m: Per-tick downward decrement of the carrot from the
+            measured EE while descending toward contact.
+        push_step_m: Light downward press bias used while searching/seating so
+            the carrot keeps gentle contact instead of jumping to the deep
+            equilibrium in one tick.
     """
 
     def __init__(self, socket_xyz, params: IntentParams = IntentParams(),
-                 down_quat=(1.0, 0.0, 0.0, 0.0), push_step_m: float = 0.0015):
+                 down_quat=(1.0, 0.0, 0.0, 0.0), descend_step_m: float = 0.0015,
+                 push_step_m: float = 0.0015):
         self.module = InsertionIntentModule(socket_xyz, params)
         self.down_quat = tuple(float(v) for v in down_quat)
+        self.descend_step_m = float(descend_step_m)
         self.push_step_m = float(push_step_m)
+        self.insert_depth_m = float(self.module.params.insert_depth_m)
 
     def step(self, phase: str, s: IntentSensors) -> MMCCommand:
         intent = self.module.step(phase, s)
+        ee = np.asarray(s.ee_xyz, float).reshape(3)
         tx, ty, tz = intent.target_xyz
+        nxt = intent.phase
         cz = self.module.contact_z
+        sx, sy, _sz = self.module.socket
 
-        if phase == "SEARCH_SPIRAL" and cz is not None:
-            # keep a light press below the contact plane; the node's lead-clamp
-            # from the EE turns this into the actual carrot step.
-            desired = (tx, ty, cz - self.push_step_m)
-        else:
-            # every other phase passes the absolute canonical target through;
-            # the node lead-clamps it to a small lead ahead of the measured EE.
+        if phase in ("IDLE", "MOVE_ABOVE", "RETRACT"):
+            # pass the absolute canonical target through; the node lead-clamps
+            # it to a small lead ahead of the measured EE.
             desired = (tx, ty, tz)
+        elif phase == "DESCEND_TO_CONTACT":
+            if nxt == "SEARCH_SPIRAL":
+                desired = (ee[0], ee[1], ee[2])  # contact recorded -> hold here
+            else:
+                # step straight down one descend_step from the MEASURED EE
+                desired = (tx, ty, ee[2] - self.descend_step_m)
+        elif phase == "SEARCH_SPIRAL":
+            if nxt == "ERROR":
+                desired = (ee[0], ee[1], ee[2])
+            else:
+                # gentle press a single push_step below the contact plane
+                desired = (tx, ty, cz - self.push_step_m)
+        elif phase == "PUSH_INSERT":
+            target_z = cz - self.insert_depth_m
+            # ramp toward the deep equilibrium one push_step at a time
+            desired = (sx, sy, max(target_z, ee[2] - self.push_step_m))
+        else:
+            # CONFIRM / DONE / ERROR / unknown -> hold position
+            desired = (ee[0], ee[1], ee[2])
 
         return MMCCommand(
             desired_xyz=(float(desired[0]), float(desired[1]), float(desired[2])),
@@ -161,7 +193,7 @@ class ImpedanceCommandPathAdapter:
         self.press_force_n = float(press_force_n)
         self.insert_press_n = float(insert_press_n)
         self.max_press_depth_m = float(max_press_depth_m)
-        self.R = np.asarray(_DEFAULT_R if R is None else R, float).reshape(3, 3)
+        self.R = np.array(_DEFAULT_R if R is None else R, dtype=float).reshape(3, 3)
 
     @property
     def press_gap_m(self) -> float:

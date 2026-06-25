@@ -118,12 +118,74 @@ class TestMMCAdapter:
             assert len(cmd.desired_xyz) == 3
             assert np.all(np.isfinite(cmd.desired_xyz))
 
-    def test_drives_down_during_contact_phases(self):
-        _, rows = run_mmc()
-        for ph, cmd in rows:
-            if ph in ("DESCEND_TO_CONTACT", "SEARCH_SPIRAL", "PUSH_INSERT"):
-                # carrot is at or below the socket-top plane so the arm descends
-                assert cmd.desired_xyz[2] <= SOCKET[2] + 1e-9
+    def test_descend_ramps_one_step_from_ee(self):
+        # While descending without contact, the MMC carrot steps down a small
+        # descend_step_m from the MEASURED EE (a ~1.5 mm/tick ramp), NOT the
+        # absolute deep canonical target (socket_z - insert_depth). The contact
+        # step itself holds on the EE.
+        descend_step = 0.0015
+        a = MMCCommandPathAdapter(
+            SOCKET, IntentParams(), down_quat=DOWN_QUAT,
+            descend_step_m=descend_step, push_step_m=0.0015,
+        )
+        phase = "MOVE_ABOVE"
+        seen_ramp = 0
+        for s in sensor_sequence():
+            cmd = a.step(phase, s)
+            if phase == "DESCEND_TO_CONTACT":
+                ee_z = s.ee_xyz[2]
+                if cmd.next_phase == "DESCEND_TO_CONTACT":
+                    seen_ramp += 1
+                    assert cmd.desired_xyz[2] == pytest.approx(ee_z - descend_step)
+                    assert cmd.desired_xyz[0] == pytest.approx(SOCKET[0])
+                    assert cmd.desired_xyz[1] == pytest.approx(SOCKET[1])
+                else:  # contact recorded -> hold on the contact step
+                    assert cmd.desired_xyz == pytest.approx(tuple(s.ee_xyz))
+            phase = cmd.next_phase
+        assert seen_ramp >= 1
+
+    def test_search_spiral_gentle_press_below_contact(self):
+        push_step = 0.0015
+        a = MMCCommandPathAdapter(
+            SOCKET, IntentParams(), down_quat=DOWN_QUAT, push_step_m=push_step,
+        )
+        phase = "MOVE_ABOVE"
+        seen = 0
+        for s in sensor_sequence():
+            cmd = a.step(phase, s)
+            if phase == "SEARCH_SPIRAL" and cmd.next_phase != "ERROR":
+                seen += 1
+                cz = a.module.contact_z
+                assert cz is not None
+                # a light press a single push_step below the contact plane
+                assert cmd.desired_xyz[2] == pytest.approx(cz - push_step)
+            phase = cmd.next_phase
+        assert seen >= 1
+
+    def test_push_insert_ramps_not_absolute_target(self):
+        # PUSH_INSERT must ramp toward the deep equilibrium one push_step at a
+        # time: desired z == max(contact_z - insert_depth, ee_z - push_step_m),
+        # NOT a one-tick jump to (contact_z - insert_depth).
+        push_step = 0.0015
+        a = MMCCommandPathAdapter(
+            SOCKET, IntentParams(), down_quat=DOWN_QUAT, push_step_m=push_step,
+        )
+        insert_depth = a.module.params.insert_depth_m
+        phase = "MOVE_ABOVE"
+        seen = 0
+        for s in sensor_sequence():
+            cmd = a.step(phase, s)
+            if phase == "PUSH_INSERT":
+                seen += 1
+                cz = a.module.contact_z
+                ee_z = s.ee_xyz[2]
+                assert cmd.desired_xyz[2] == pytest.approx(
+                    max(cz - insert_depth, ee_z - push_step))
+                # xy snaps to the socket center (not the canonical hole_xy)
+                assert cmd.desired_xyz[0] == pytest.approx(SOCKET[0])
+                assert cmd.desired_xyz[1] == pytest.approx(SOCKET[1])
+            phase = cmd.next_phase
+        assert seen >= 1
 
 
 class TestImpedanceAdapter:

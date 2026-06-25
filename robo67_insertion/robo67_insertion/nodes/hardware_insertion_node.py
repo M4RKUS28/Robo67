@@ -58,8 +58,8 @@ import time
 import numpy as np
 
 from robo67_insertion.lib.command_path_adapters import ImpedanceCommandPathAdapter
-from robo67_insertion.lib.insertion_intent import IntentParams, IntentSensors
-from robo67_insertion.lib.wrench import BaselineEstimator
+from robo67_insertion.lib.contact_lifecycle import ContactLifecycleModule
+from robo67_insertion.lib.insertion_intent import PHASES, IntentParams, IntentSensors
 from robo67_insertion.lib import safety
 from robo67_insertion.lib.safety_envelope import (
     ImpedanceSafetyProfile,
@@ -96,8 +96,9 @@ def R_to_rowmajor(R):
 # rate-limits the command toward that goal and feeds back sensors.
 # ---------------------------------------------------------------------------
 
-STATES = ("MOVE_ABOVE", "DESCEND_TO_CONTACT", "SEARCH_SPIRAL",
-          "PUSH_INSERT", "CONFIRM", "RETRACT", "DONE", "ERROR")
+# Real-arm sequence never sits in IDLE (it starts at MOVE_ABOVE); derive the
+# rest from the single canonical PHASES tuple (ADR-0001) instead of re-listing.
+STATES = tuple(p for p in PHASES if p != "IDLE")
 
 
 def build_intent_adapter(socket_xyz, *, pos_stiff=200.0, press_force_n=3.0,
@@ -156,7 +157,10 @@ def selftest(args):
 
     ee = np.array([0.45, 0.0, 0.30])
     cmd = ee.copy()
-    base = BaselineEstimator(alpha=0.1, initial=0.0)
+    # Contact lifecycle seam owns the baseline update/freeze policy: the EMA
+    # tracks Fz only in free space (MOVE_ABOVE) and freezes everywhere else.
+    # `confirm` reproduces the old "update only in MOVE_ABOVE" freeze.
+    contact = ContactLifecycleModule(threshold_n=args.contact_fz, alpha=0.1, initial=0.0)
 
     aabb = np.array([[0.2, 0.65], [-0.4, 0.4], [0.02, 0.6]])
     z_floor = 0.03  # assertion lower bound on min ee z (see RESULT below)
@@ -189,10 +193,10 @@ def selftest(args):
         gap = max(0.0, ee[2] - cmd[2]) if ee[2] <= floor + 1e-6 else 0.0
         fz = pos_stiff * gap  # reaction force magnitude (>=0)
 
-        if phase == "MOVE_ABOVE":
-            base.update(fz)
+        outcome = contact.observe(
+            "free_space" if phase == "MOVE_ABOVE" else "confirm", fz)
         s = IntentSensors(ee_xyz=tuple(float(v) for v in ee), fz=fz,
-                          fz_baseline=base.value, t=t)
+                          fz_baseline=outcome.baseline_fz, t=t)
         out = adapter.step(phase, s)
         goal = np.asarray(out.goal_xyz, float)
         seen.add(phase)
@@ -403,7 +407,11 @@ def run_ros(args):
     )
 
     phase = "MOVE_ABOVE"
-    base = BaselineEstimator(alpha=0.05, initial=float(node.wrench[2]))
+    # Contact lifecycle seam owns the baseline update/freeze policy (same seam
+    # the sim orchestrator uses): track the free-space Fz baseline only in
+    # MOVE_ABOVE, freeze it during every contact phase via `confirm`.
+    contact = ContactLifecycleModule(
+        threshold_n=args.contact_fz, alpha=0.05, initial=float(node.wrench[2]))
     cmd = node.ee.copy()
     msg = Float64MultiArray()
     dt = 1.0 / args.rate
@@ -426,11 +434,11 @@ def run_ros(args):
             ee = node.ee
             fz = float(node.wrench[2])
 
-            if phase == "MOVE_ABOVE":
-                base.update(fz)
+            outcome = contact.observe(
+                "free_space" if phase == "MOVE_ABOVE" else "confirm", fz)
 
             s = IntentSensors(ee_xyz=tuple(float(v) for v in ee), fz=fz,
-                              fz_baseline=base.value, t=t)
+                              fz_baseline=outcome.baseline_fz, t=t)
             out = adapter.step(phase, s)
             goal = np.asarray(out.goal_xyz, float)
             st = phase
@@ -454,7 +462,7 @@ def run_ros(args):
             if st != last_state:
                 node.get_logger().info(
                     f"[{st}] ee=({ee[0]:.3f},{ee[1]:.3f},{ee[2]:.3f}) "
-                    f"fz={fz:.2f} base={base.value:.2f} cmd_z={cmd[2]:.3f}")
+                    f"fz={fz:.2f} base={outcome.baseline_fz:.2f} cmd_z={cmd[2]:.3f}")
                 last_state = st
 
             # adapter helper keeps px / R22 non-zero (controller quirk)

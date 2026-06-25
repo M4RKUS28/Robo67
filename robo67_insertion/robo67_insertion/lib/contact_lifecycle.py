@@ -50,6 +50,8 @@ class ContactLifecycleModule:
     """
 
     def __init__(self, threshold_n: float, alpha: float = 0.1, initial: float = 0.0) -> None:
+        if threshold_n < 0:
+            raise ValueError("threshold_n must be non-negative")
         self._threshold_n = float(threshold_n)
         self._baseline = BaselineEstimator(alpha=alpha, initial=initial)
 
@@ -61,6 +63,8 @@ class ContactLifecycleModule:
         mode the baseline is frozen and contact is reported when
         ``abs(fz - baseline) >= threshold_n``.
         """
+        if mode not in ("free_space", "contact_search", "insert", "confirm"):
+            raise ValueError(f"unknown ContactMode: {mode!r}")
         if mode == "free_space":
             baseline = self._baseline.update(fz)
             return ContactOutcome(baseline_fz=baseline, contact_detected=False)

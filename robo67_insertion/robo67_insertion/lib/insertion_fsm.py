@@ -23,8 +23,9 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from robo67_insertion.lib.command_path_adapters import MMCCommandPathAdapter
 from robo67_insertion.lib.insertion_intent import (
-    InsertionIntentModule,
+    PHASES,
     IntentParams,
     IntentSensors,
 )
@@ -71,18 +72,8 @@ class Decision:
     error: str = None
 
 
-# Canonical set of FSM states (mirrors the canonical seam).
-STATES = (
-    "IDLE",
-    "MOVE_ABOVE",
-    "DESCEND_TO_CONTACT",
-    "SEARCH_SPIRAL",
-    "PUSH_INSERT",
-    "CONFIRM",
-    "RETRACT",
-    "DONE",
-    "ERROR",
-)
+# Canonical set of FSM states -- the SINGLE source is the intent seam (ADR-0001).
+STATES = PHASES
 
 
 class InsertionFSM:
@@ -95,7 +86,11 @@ class InsertionFSM:
 
     def __init__(self, socket_xyz, params: FsmParams = FsmParams()):
         self.p = params
-        self.module = InsertionIntentModule(
+        # The MMC command shaping (descend/push ramp + held orientation) lives
+        # ONLY in MMCCommandPathAdapter now; the shim delegates to it. We expose
+        # the adapter's intent module as ``self.module`` so the @property proxies
+        # below (contact_z/spiral_t0/retries/error) operate on the SAME module.
+        self.adapter = MMCCommandPathAdapter(
             socket_xyz,
             IntentParams(
                 standoff_m=params.standoff_m,
@@ -108,7 +103,11 @@ class InsertionFSM:
                 spiral_speed_mps=params.spiral_speed_mps,
                 spiral_max_radius_m=params.spiral_max_radius_m,
             ),
+            down_quat=params.down_quat,
+            descend_step_m=params.descend_step_m,
+            push_step_m=params.push_step_m,
         )
+        self.module = self.adapter.module
 
     # -- bookkeeping mirrored onto the canonical module ------------------
 
@@ -168,14 +167,13 @@ class InsertionFSM:
     def step(self, state: str, s: Sensors) -> Decision:
         """Advance the FSM one tick and return the commanded :class:`Decision`.
 
-        Transitions + contact/drop/retry bookkeeping come from the canonical
-        seam; only the MMC-flavored desired_xyz shaping lives here.
+        Both the transitions AND the MMC command shaping now live in the
+        adapter; this shim only translates the legacy ``Sensors`` into
+        :class:`IntentSensors` and wraps the returned ``MMCCommand`` back into a
+        :class:`Decision`.
         """
-        p = self.p
         ee = np.asarray(s.ee_xyz, float).reshape(3)
-        sx, sy, sz = self.module.socket
-
-        intent = self.module.step(
+        cmd = self.adapter.step(
             state,
             IntentSensors(
                 ee_xyz=(float(ee[0]), float(ee[1]), float(ee[2])),
@@ -184,27 +182,6 @@ class InsertionFSM:
                 t=s.t,
             ),
         )
-        nxt = intent.phase
-        tx, ty, _tz = intent.target_xyz
-        cz = self.module.contact_z
-
-        if state in ("IDLE", "MOVE_ABOVE", "RETRACT"):
-            desired = intent.target_xyz
-        elif state == "DESCEND_TO_CONTACT":
-            if nxt == "SEARCH_SPIRAL":
-                desired = ee  # contact recorded -> hold on the contact step
-            else:
-                desired = (tx, ty, ee[2] - p.descend_step_m)  # step straight down
-        elif state == "SEARCH_SPIRAL":
-            if nxt == "ERROR":
-                desired = ee
-            else:
-                desired = (tx, ty, cz - p.push_step_m)  # gentle press while searching
-        elif state == "PUSH_INSERT":
-            target_z = cz - p.insert_depth_m
-            desired = (sx, sy, max(target_z, ee[2] - p.push_step_m))
-        else:
-            # CONFIRM / DONE / ERROR / unknown -> hold position
-            desired = ee
-
-        return self._decision(desired, nxt, done=intent.done, error=intent.error)
+        return self._decision(
+            cmd.desired_xyz, cmd.next_state, done=cmd.done, error=cmd.error
+        )
