@@ -127,6 +127,9 @@ def main():
     ap.add_argument("--max-drop", type=float, default=0.20)
     ap.add_argument("--contact-n", type=float, default=6.0, help="Fz rise over baseline = contact")
     ap.add_argument("--descend-lead", type=float, default=0.004, help="per-tick downward carrot")
+    ap.add_argument("--descend-step", type=float, default=0.03,
+                    help="max equilibrium lead below the EE during descent (m); at high "
+                         "stiffness keep this small to cap the contact force (F=pos_stiff*step)")
     ap.add_argument("--retract", type=float, default=0.03)
     ap.add_argument("--cmd-mode", choices=["auto", "mmc", "subscriber"], default="auto")
     args = ap.parse_args()
@@ -176,18 +179,19 @@ def main():
         target_z -= args.descend_lead
         sp = np.array([start[0], start[1], target_z])
         sp = safety.clamp_to_workspace(list(sp), WORKSPACE_AABB)
-        sp = safety.clamp_step(n.ee_xyz, sp, 0.03)
+        sp = safety.clamp_step(n.ee_xyz, sp, args.descend_step)
         n.publish(sp, quat)
         if np.linalg.norm(n.ee_xyz - ee_ref) < NO_MOTION_EPS_M:
             if time.time() - no_motion_t0 > NO_MOTION_ABORT_S:
-                print(f"[probe] NO MOTION during descend: command path ignored (cmd_mode={n.cmd.mode}). Check FCI/SPoC and controller path.")
+                print(f"[probe] NO MOTION during descend (ee not moving; deadband > descend-step?). "
+                      f"cmd_mode={n.cmd.mode} gap={n.ee_xyz[2]-sp[2]:.4f} dFz={dfz:+.2f}")
                 break
         else:
             ee_ref = n.ee_xyz.copy()
             no_motion_t0 = time.time()
-        # light periodic log
-        if int((start[2]-target_z)*1000) % 10 == 0:
-            print(f"  z={n.ee_xyz[2]:.4f} dFz={dfz:+.2f}")
+        # periodic log (time-based): EE z, commanded gap below EE, dFz
+        if time.time() - no_motion_t0 < 0.05 or int((start[2] - target_z) * 1000) % 5 == 0:
+            print(f"  z={n.ee_xyz[2]:.4f} sp_z={sp[2]:.4f} gap={n.ee_xyz[2]-sp[2]:+.4f} dFz={dfz:+.2f} mode={n.mode}")
 
     if contact_z is None:
         print(f"[probe] no contact within {args.max_drop} m (mat lower than reach or peg missing)")
