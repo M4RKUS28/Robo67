@@ -2,7 +2,7 @@
 
 Date: 2026-06-25
 Scope: Peg-in-hole insertion architecture in robo67_insertion.
-Status: Approved decisions captured, implementation pending.
+Status: ✅ COMPLETE — all four candidates implemented, reviewed, and merged on `jearningers`. See "Implementation Status" at the end.
 
 ## Goal
 
@@ -335,3 +335,65 @@ The architecture iteration is done when all of the following are true:
 - Safety envelope behavior is applied through one module interface in both command paths.
 - Pixel-to-base conversion semantics are invoked through one mapping seam.
 - Tests primarily target deep module interfaces, not shallow helper fragments.
+
+---
+
+## Implementation Status (2026-06-25 — COMPLETE)
+
+Executed in the locked order 1 → 3 → 4 → 2 (subagent-driven: fresh implementer
+per task + independent reviewer gate per task; all four reviews returned spec ✅
++ quality Approved). Test count grew 68 → 144, all green; the offline
+`hardware_insertion_node --selftest` stayed byte-identical (978 ticks /
+0.0300 m/s / 0.0713 m) across the safety refactor, proving impedance-path parity.
+
+### Candidate 1 — canonical insertion intent (commits 0e52496, 89344a7)
+- New `lib/insertion_intent.py` (`InsertionIntentModule`) owns the single phase
+  transition graph (contact, drop, spiral retry/exhaustion, confirm, retract),
+  emitting controller-agnostic absolute `target_xyz` + `contact_z`.
+- New `lib/command_path_adapters.py`: `MMCCommandPathAdapter` (held quaternion,
+  carrot lead via the node) and `ImpedanceCommandPathAdapter` (held row-major R,
+  below-surface equilibrium gaps `press_gap=press_force/pos_stiff`,
+  `insert_gap=insert_press/pos_stiff`, px/R22 kept non-zero). Both delegate to the
+  module; neither contains transition logic.
+- `nodes/insertion_orchestrator_node.py` and `nodes/hardware_insertion_node.py`
+  both rewired onto the seam. `InsertionFSM` retained as a thin shim delegating to
+  the module so `test_insertion_fsm.py` stays green as the MMC-path parity harness.
+- Tests: `test_insertion_intent.py`, `test_command_path_adapters.py` (incl. the
+  identical-phase-sequence conformance test proving one model drives both paths).
+- HARDWARE-VALIDATED on the real arm: dry-run (correct gaps from live state),
+  +2 cm nudge (publish path drives the arm), guarded force probe on the subscriber
+  command path.
+
+### Candidate 3 — contact lifecycle (commits dceeef6, e82b344)
+- New `lib/contact_lifecycle.py` (`ContactLifecycleModule`) owns baseline
+  update/freeze keyed on an explicit `ContactMode`, composing `wrench.py`
+  primitives. Orchestrator's inline `if state in (IDLE, MOVE_ABOVE): baseline.update`
+  choreography removed; value-identical baseline still fed to the FSM.
+- Tests: `test_contact_lifecycle.py`.
+
+### Candidate 4 — safety envelope (commit e627755)
+- New `lib/safety_envelope.py` (`SafetyEnvelopeModule` + `MMCSafetyProfile` /
+  `ImpedanceSafetyProfile`) composes `safety.py` primitives with standardized
+  workspace-then-step ordering. Anchor policy is the profile difference: MMC steps
+  from measured EE; Impedance steps from previous command and folds the
+  socket-top z-floor into its workspace AABB. Both nodes' safety blocks (run loop
+  + offline selftest) route through `apply()`.
+- Tests: `test_safety_envelope.py`.
+
+### Candidate 2 — pixel mapping (commit 65e5f18)
+- New `lib/pixel_mapping.py` (`PixelToBaseMappingModule` + `HomographyMappingAdapter`
+  composing `geometry.pixel_to_base`, `PinholeMappingAdapter` composing
+  `servoing.ibvs_correction` at gain=1.0). Gain stays in the d405 node. Both
+  perception nodes rewired; published outputs byte-preserved.
+- Tests: `test_pixel_mapping.py` (incl. cross-adapter consistency).
+
+### Test retention decision (Task 8.5)
+No existing tests were deleted. Each candidate was ADDITIVE — the new seams
+*compose* the retained primitives (`wrench`, `safety`, `geometry`, `servoing`)
+rather than replacing them, so the primitive unit tests remain valid coverage of
+in-use building blocks, and behavioral assertions now live at the seam level
+(`test_insertion_intent`/`_command_path_adapters`/`_contact_lifecycle`/
+`_safety_envelope`/`_pixel_mapping`). `test_insertion_fsm.py` is retained as the
+MMC-path parity harness (the shim delegates to the canonical module). No test was
+found that asserts nothing or duplicates a logic block, so the "delete superseded
+shallow tests" step correctly results in zero deletions.
