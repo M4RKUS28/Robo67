@@ -4,6 +4,21 @@ Date: 2026-06-25
 Scope: Peg-in-hole insertion architecture in robo67_insertion.
 Status: ✅ COMPLETE — all four candidates implemented, reviewed, and merged on `jearningers`. See "Implementation Status" at the end.
 
+## Architecture diagrams
+
+PlantUML sources (+ rendered `.svg`/`.png`) live in [`diagrams/`](diagrams/):
+
+- **`peg_in_hole_workflow.puml`** — activity diagram of the insertion *process*:
+  the canonical `InsertionIntentModule` phase flow (perceive → MOVE_ABOVE →
+  DESCEND_TO_CONTACT → SEARCH_SPIRAL → PUSH_INSERT → CONFIRM → RETRACT → DONE,
+  with spiral/confirm retries and ERROR stops), plus the frozen force baseline
+  and the per-setpoint safety envelope.
+- **`peg_in_hole_architecture.puml`** — component diagram of the *code*: thin ROS
+  nodes → canonical pure seams (`insertion_intent` highlighted) → primitives, with
+  the SIM (`CartesianImpedanceGoal`) vs REAL (`Float64MultiArray`) command-path split.
+
+Re-render: `plantuml -tsvg docs/architecture/diagrams/*.puml` (needs the `plantuml` CLI).
+
 ## Goal
 
 Increase module depth, leverage, and locality for the insertion stack by deepening four high-value seams:

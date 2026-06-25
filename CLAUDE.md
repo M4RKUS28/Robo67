@@ -21,6 +21,10 @@ The `robo67_insertion` insertion logic is organized as deep, host-testable
 (`pytest`, no rclpy) seams under `robo67_insertion/lib/`, each composed by thin
 node wrappers. See [`docs/architecture/deepening-roadmap-2026-06-25.md`](docs/architecture/deepening-roadmap-2026-06-25.md)
 and [`docs/adr/0001-canonical-insertion-intent-module.md`](docs/adr/0001-canonical-insertion-intent-module.md).
+Visual overview (PlantUML, `.puml` + rendered `.svg`/`.png`) in
+[`docs/architecture/diagrams/`](docs/architecture/diagrams/): `peg_in_hole_workflow`
+(the insertion process / phase flow) and `peg_in_hole_architecture` (nodes → seams →
+primitives). Re-render with `plantuml -tsvg docs/architecture/diagrams/*.puml`.
 
 - **`insertion_intent.py`** — the ONE canonical phase model (IDLE→…→DONE/ERROR),
   controller-agnostic. All transition logic lives here.

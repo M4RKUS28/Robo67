@@ -1,0 +1,107 @@
+@startuml peg_in_hole_architecture
+' ===========================================================================
+' Robo67 -- Peg-in-Hole Insertion CODE ARCHITECTURE (the "how it fits" side)
+' Component diagram of robo67_insertion: thin ROS nodes compose pure,
+' host-testable seams, which compose primitive building blocks.
+' See docs/adr/0001-canonical-insertion-intent-module.md
+' ===========================================================================
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundCorner 6
+skinparam defaultFontName "Inter, Helvetica, Arial, sans-serif"
+skinparam defaultFontSize 12
+skinparam ArrowColor #18181B
+skinparam ArrowFontColor #52525B
+skinparam componentStyle rectangle
+skinparam ComponentBorderColor #3F3F46
+skinparam ComponentBackgroundColor #F4F4F5
+skinparam PackageBorderColor #A1A1AA
+skinparam PackageBackgroundColor #FAFAFA
+
+title Robo67 — Peg-in-Hole Insertion Architecture (nodes → seams → primitives)
+
+' --------------------------------------------------------------------------
+package "Hardware & controllers" {
+  node "Franka Panda arm" as ARM
+  component "overhead C920\n(cv camera)" as C920
+  component "eye-in-hand D405\n(depth camera)" as D405
+  component "MMC cartesian_impedance\n(SIM controller)" as MMC
+  component "franka_controllers\nCartesian impedance (REAL)" as FCTRL
+}
+
+' --------------------------------------------------------------------------
+package "ROS 2 nodes  (thin rclpy wrappers — no transition logic)" {
+  component "socket_detector_node" as NDET
+  component "d405_servo_node" as NSERVO
+  component "insertion_orchestrator_node\n«SIM / MMC path»" as NORCH
+  component "hardware_insertion_node\n«REAL arm path»" as NHW
+  component "calibration_node" as NCAL
+}
+
+' --------------------------------------------------------------------------
+package "Canonical seams  (pure · host-testable · pytest, no rclpy/ROS/cv2)" {
+  component "insertion_intent\nInsertionIntentModule\n(the ONE phase model)" as INTENT #FFE9B0
+  component "command_path_adapters\nMMC · Impedance" as ADAPT
+  component "contact_lifecycle\nbaseline update/freeze" as CLIFE
+  component "safety_envelope\nMMC · Impedance profiles" as SENV
+  component "pixel_mapping\nHomography · Pinhole" as PMAP
+}
+
+' --------------------------------------------------------------------------
+package "Primitives  (building blocks the seams compose)" {
+  component "wrench\nEMA + contact detect" as WRENCH
+  component "spiral\nArchimedean offset" as SPIRAL
+  component "safety\nclamp / abort" as SAFE
+  component "geometry\nposes + homography" as GEOM
+  component "servoing\nIBVS correction" as SERVO
+  component "hole_detect\ncircle detection" as HOLE
+}
+
+' === nodes -> seams (composition) =========================================
+NDET    --> HOLE
+NDET    --> PMAP   : Homography
+NSERVO  --> HOLE
+NSERVO  --> PMAP   : Pinhole
+NORCH   --> ADAPT  : MMC
+NORCH   --> CLIFE
+NORCH   --> SENV   : MMC profile
+NHW     --> ADAPT  : Impedance
+NHW     --> CLIFE
+NHW     --> SENV   : Impedance profile
+NCAL    --> GEOM   : fit homography
+
+' === seams -> seams / primitives ==========================================
+ADAPT   --> INTENT : delegates ALL\ntransitions
+INTENT  --> SPIRAL
+INTENT  --> WRENCH
+CLIFE   --> WRENCH
+SENV    --> SAFE
+PMAP    --> GEOM
+PMAP    --> SERVO
+
+' === ROS message flow (dashed) ============================================
+C920   ..>  NDET   : frames
+D405   ..>  NSERVO : frames
+NDET   ..>  NORCH  : /robo67/socket_pose
+NSERVO ..>  NORCH  : /robo67/servo_correction
+NORCH  ..>  MMC    : CartesianImpedanceGoal
+NHW    ..>  FCTRL  : Float64MultiArray\n[px,py,pz, R00..R22]
+MMC    -->  ARM
+FCTRL  -->  ARM
+ARM    ..>  NORCH  : FrankaState\n(EE pose + wrench)
+ARM    ..>  NHW    : FrankaState\n(EE pose + wrench)
+
+note bottom of INTENT
+  Controller-agnostic. Owns contact detection,
+  spiral, drop/retry, confirm/retract & contact_z.
+  Quirks (carrot lead, below-surface gaps, held R)
+  live ONLY in the command-path adapters.
+end note
+
+legend bottom
+  ──▶ uses / composes (Python import)      ┄┄▶ ROS 2 message (topic)
+  Both insertion nodes drive the SAME insertion_intent; the SIM vs REAL
+  difference is isolated in the adapter + safety profile they pick.
+endlegend
+
+@enduml

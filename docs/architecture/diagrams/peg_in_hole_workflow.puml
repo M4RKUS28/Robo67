@@ -1,0 +1,113 @@
+@startuml peg_in_hole_workflow
+' ===========================================================================
+' Robo67 -- Peg-in-Hole Insertion WORKFLOW (the "what happens" side)
+' Activity diagram of the canonical phase model in
+'   robo67_insertion/lib/insertion_intent.py  (InsertionIntentModule.step)
+' Convention: Z is UP in the robot base frame, so "descend" = decreasing z.
+' ===========================================================================
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam roundCorner 6
+skinparam defaultFontName "Inter, Helvetica, Arial, sans-serif"
+skinparam defaultFontSize 12
+skinparam ArrowColor #18181B
+skinparam ArrowFontColor #52525B
+skinparam ActivityBorderColor #3F3F46
+skinparam ActivityBackgroundColor #F4F4F5
+skinparam ActivityDiamondBackgroundColor #FFFFFF
+
+title Robo67 — Peg-in-Hole Insertion Workflow (Vision + Force)
+
+start
+
+partition "Perceive socket (vision)" {
+  :Grab overhead **C920** frame;
+  :**detect_holes()** → best dark circle pixel (u, v);
+  :**HomographyMappingAdapter** →\nsocket centre XY in robot base frame;
+  note right
+    Socket-top **Z** is taught / force-probed,
+    not recovered from one overhead camera.
+  end note
+  if (D405 eye-in-hand refinement?) then (yes)
+    :Detect hole in **D405** image;
+    :**PinholeMappingAdapter** → unscaled XY correction (dx, dy);
+    :Apply servo gain → refine socket XY;
+  else (no)
+  endif
+}
+
+partition "MOVE_ABOVE  (free-space approach)" {
+  :Servo toward socket XY at standoff (≈5 cm above top);
+  repeat
+    :Step toward standoff pose;
+  repeat while (within approach tol (3 mm)?) is (no) not (yes)
+}
+
+note right
+  **Force baseline** (ContactLifecycleModule):
+  EMA tracks Fz ONLY in free space
+  (IDLE / MOVE_ABOVE), then FROZEN for
+  every contact phase as the reference.
+end note
+
+partition "DESCEND_TO_CONTACT  (find the surface)" {
+  repeat
+    :Lower equilibrium one step, read Fz;
+  repeat while (|Fz − baseline| ≥ contact threshold (5 N)?) is (not yet) not (contact!)
+  :Record **contact_z** = socket-top height;
+}
+
+' --- outer retry loop: spiral search -> push -> confirm --------------------
+repeat :begin seat attempt;
+
+  partition "SEARCH_SPIRAL  (locate the hole)" {
+    repeat
+      :Follow **Archimedean spiral** (pitch 2 mm)\nwhile pressing gently below contact plane;
+      if (spiral radius > max (12 mm)?) then (yes, exhausted)
+        :Restart spiral from centre;\nretries++;
+        if (retries > limit (3)?) then (yes)
+          #FFD9D9:**ERROR** — search exhausted;
+          stop
+        endif
+      else (no)
+      endif
+    repeat while (peg dropped in?  (ee_z < contact_z − 4 mm)) is (not yet) not (dropped in!)
+    :Record **hole_xy**;
+  }
+
+  partition "PUSH_INSERT  (seat the peg)" {
+    repeat
+      :Press toward contact_z − insert_depth (≈4 cm);
+    repeat while (seated at target depth?) is (no) not (yes)
+  }
+
+  partition "CONFIRM" {
+    if (reached ≥ 80% of insert depth?) then (no)
+      :retries++;
+      if (retries > limit (3)?) then (yes)
+        #FFD9D9:**ERROR** — insertion not confirmed;
+        stop
+      else (no)
+      endif
+    else (yes)
+    endif
+  }
+
+repeat while (insertion confirmed?) is (no — retry search) not (yes)
+
+partition "RETRACT" {
+  repeat
+    :Lift toward standoff (5 cm above socket);
+  repeat while (back above contact_z?) is (no) not (yes)
+}
+
+#D9F2D9:**DONE** — peg seated & retracted;
+stop
+
+legend bottom
+  Every commanded setpoint passes the **Safety Envelope** first:
+  workspace AABB clamp → per-cycle step clamp → force abort (Fz/F caps).
+  A force-cap breach aborts the run and holds position at any phase.
+endlegend
+
+@enduml
