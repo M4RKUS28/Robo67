@@ -33,13 +33,34 @@ from multi_mode_control_msgs.srv import SetControllers, SetCartesianImpedance
 from robo67_insertion.config_schema import RoboConfig, load_config
 from robo67_insertion.lib import geometry, safety
 from robo67_insertion.lib.command_path_adapters import MMCCommandPathAdapter
+from robo67_insertion.lib.contact_lifecycle import ContactLifecycleModule, ContactMode
 from robo67_insertion.lib.insertion_intent import IntentParams, IntentSensors
-from robo67_insertion.lib.wrench import BaselineEstimator
 
 
 def _default_config_path() -> str:
     here = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return os.path.join(here, "config", "robo67.yaml")
+
+
+# Maps each FSM phase to the contact lifecycle mode. Only free-space phases
+# update the baseline; every contact (and terminal) phase keeps it frozen,
+# matching the original inline behavior (update in IDLE/MOVE_ABOVE only).
+_PHASE_TO_CONTACT_MODE: dict[str, ContactMode] = {
+    "IDLE": "free_space",
+    "MOVE_ABOVE": "free_space",
+    "DESCEND_TO_CONTACT": "contact_search",
+    "SEARCH_SPIRAL": "contact_search",
+    "PUSH_INSERT": "insert",
+    "CONFIRM": "confirm",
+    "RETRACT": "confirm",
+    "DONE": "confirm",
+    "ERROR": "confirm",
+}
+
+
+def _contact_mode_for(phase: str) -> ContactMode:
+    """Return the contact lifecycle mode for an FSM phase (frozen by default)."""
+    return _PHASE_TO_CONTACT_MODE.get(phase, "confirm")
 
 
 def stiffness_matrix(trans_xy: float, trans_z: float, rot: float) -> list:
@@ -80,7 +101,11 @@ class InsertionOrchestrator(Node):
         self.q = [0.0] * 7
         self.fz = 0.0
         self.wrench = [0.0] * 6
-        self.baseline = BaselineEstimator(alpha=0.1, initial=0.0)
+        self.contact = ContactLifecycleModule(
+            threshold_n=self.cfg.insertion.contact_fz_threshold_n,
+            alpha=0.1,
+            initial=0.0,
+        )
         self.adapter: MMCCommandPathAdapter | None = None
         self.state = "IDLE"
         self.prev_cmd: np.ndarray | None = None
@@ -212,14 +237,15 @@ class InsertionOrchestrator(Node):
             self.aborted = True
             return
 
-        # estimate free-space baseline only before contact
-        if self.state in ("IDLE", "MOVE_ABOVE"):
-            self.baseline.update(self.fz)
+        # contact lifecycle owns the baseline update/freeze policy: it tracks
+        # the free-space baseline only in free-space phases and freezes it in
+        # every contact phase, then exposes that baseline to the FSM.
+        outcome = self.contact.observe(_contact_mode_for(self.state), self.fz)
 
         s = IntentSensors(
             ee_xyz=tuple(float(v) for v in self.ee_xyz),
             fz=self.fz,
-            fz_baseline=self.baseline.value,
+            fz_baseline=outcome.baseline_fz,
             t=now,
         )
         cmd = self.adapter.step(self.state, s)
