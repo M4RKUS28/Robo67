@@ -2,13 +2,20 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 >
-> **Full context, decisions, and verified interfaces live in [`/HANDOFF.md`](../../../HANDOFF.md).** This plan is the task breakdown; HANDOFF.md is the source of truth for *why*.
+> **Full context, decisions, and verified interfaces live in [`/HANDOFF.md`](../../../HANDOFF.md).** This plan is the task breakdown; HANDOFF.md is the source of truth for _why_.
 
 **Goal:** A classical vision + force peg-in-hole insertion system for the Franka Panda, driven through the `multipanda_ros2` MMC Cartesian impedance controller, delivered staged A→B→C.
 
 **Architecture:** Overhead C920 detects the socket's dark round hole → homography maps the pixel to robot-base XY → an insertion FSM streams compliant Cartesian setpoints, descends until force contact, runs an Archimedean spiral search, and confirms by Z-drop. D405 eye-in-hand visual-servoing refines XY/Z in later milestones. No ML on the critical path.
 
 **Tech Stack:** ROS 2 Humble, `rclpy`, `multipanda_ros2` (MMC Cartesian impedance), MuJoCo sim, OpenCV, NumPy, pytest.
+
+## Architecture Deepening Lock (2026-06-25)
+
+- Deepening roadmap is locked in [docs/architecture/deepening-roadmap-2026-06-25.md](../../architecture/deepening-roadmap-2026-06-25.md).
+- ADR for canonical insertion seam is accepted in [docs/adr/0001-canonical-insertion-intent-module.md](../../adr/0001-canonical-insertion-intent-module.md).
+- Domain glossary is canonical in [CONTEXT.md](../../../CONTEXT.md).
+- Selection is fixed: execute candidates 1 to 4, skip candidate 5.
 
 ## Global Constraints
 
@@ -64,6 +71,7 @@ robo67_insertion/
 ```
 
 **Frozen ROS interface (HANDOFF §4–§5):**
+
 - Publish `multi_mode_control_msgs/CartesianImpedanceGoal` → `/panda/panda_cartesian_impedance_controller/desired_pose`
 - Activate via `/set_controllers` (`SetControllers`); stiffness via `…/parameters` (`SetCartesianImpedance`, 36 col-major)
 - Read `franka_msgs/FrankaState` (`o_f_ext_hat_k`[2]=Fz, `o_t_ee`[12:15]=EE xyz)
@@ -75,7 +83,9 @@ robo67_insertion/
 ## Phase 0 — Foundation (SEQUENTIAL — orchestrator only)
 
 ### Task 0.1: Scaffold the package
+
 **Files:** Create the full tree above (empty modules with docstrings + signatures, `__init__.py`s, `package.xml`, `setup.py`, `setup.cfg`, `resource/`).
+
 - [ ] Create `package.xml` (ament_python, deps listed above).
 - [ ] Create `setup.py` with console_scripts entry points: `socket_detector`, `calibration`, `insertion_orchestrator`, `d405_servo`.
 - [ ] Create `test/` with a trivial `test_smoke.py` (`def test_import(): import robo67_insertion`).
@@ -83,14 +93,18 @@ robo67_insertion/
 - [ ] Commit: `feat(robo67): scaffold ament_python package`.
 
 ### Task 0.2: Config schema + defaults
+
 **Files:** `robo67_insertion/config_schema.py`, `config/robo67.yaml`.
+
 - [ ] Define dataclasses: `StiffnessCfg`, `SpiralCfg`, `SafetyCfg`, `TopicsCfg`, `InsertionCfg`, `RoboConfig`, plus `load_config(path)->RoboConfig` (yaml).
 - [ ] Populate `config/robo67.yaml` with defaults: free-space stiffness 400/20, contact stiffness translational-XY 150 / Z 400 / rot 20, damping 0.8, nullspace 10, Fz contact threshold 5 N, Fz abort 25 N, spiral max_radius 0.012 m / pitch 0.002 m / speed 0.005 m/s, workspace AABB (fill after Phase 0 sim), max_step 0.002 m/cycle, standoff 0.05 m, insert_depth 0.04 m, watchdog 0.2 s, retry_limit 3.
 - [ ] Test `test/test_config.py`: load yaml → assert fields.
 - [ ] Commit.
 
 ### Task 0.3: Verify interfaces in container + capture frames
+
 **This freezes the contracts the swarm relies on.** No code change beyond an appendix file.
+
 - [ ] In container: `pip3 install opencv-python pyrealsense2`; `apt-get install -y v4l-utils` (or note if rootless).
 - [ ] Launch sim: `ros2 launch franka_bringup franka_sim.launch.py`; in a second shell switch to cartesian: `ros2 service call /set_controllers multi_mode_control_msgs/srv/SetControllers '{controllers: [{name: panda_cartesian_impedance_controller, resources: [panda]}]}'`.
 - [ ] Record exact names: `ros2 topic list | grep -i robot_state`, `ros2 action list | grep -i grip`, `ros2 topic info /panda/panda_cartesian_impedance_controller/desired_pose`. Write findings to `docs/superpowers/plans/PHASE0_VERIFIED.md`.
@@ -104,7 +118,9 @@ robo67_insertion/
 > Dispatch one subagent per file via `dispatching-parallel-agents`, each in a worktree off `jearningers`. Files are disjoint → conflict-free merges. Every task: write failing test → run (fail) → implement → run (pass) → commit.
 
 ### Task 1.1: `lib/geometry.py`
+
 **Interfaces — Produces:**
+
 - `fit_homography(pixels: np.ndarray, base_xy: np.ndarray) -> np.ndarray` (3×3)
 - `pixel_to_base(H: np.ndarray, uv: np.ndarray) -> np.ndarray`
 - `mat4_colmajor_to_xyz_quat(o_t_ee: Sequence[float]) -> tuple[np.ndarray, np.ndarray]` (xyz, quat xyzw)
@@ -115,32 +131,44 @@ robo67_insertion/
 - [ ] Run → PASS. Commit.
 
 ### Task 1.2: `lib/hole_detect.py`
+
 **Produces:** `@dataclass Hole(u,v,radius_px,score)`; `detect_holes(bgr: np.ndarray, params: HoleParams) -> list[Hole]` (white-cube mask via HSV/brightness → dark blob inside → `cv2.minEnclosingCircle`/`HoughCircles`; sort by score desc).
+
 - [ ] **Test:** synthesize a 480×640 gray image, draw a white square with a black filled circle at (cx,cy,r); assert top `Hole` within 2 px of (cx,cy) and radius within 2 px. Add a negative test (no white region → empty list). If `test/fixtures/c920_socket.jpg` exists, assert ≥1 detection (regression).
 - [ ] Run → FAIL. Implement. Run → PASS. Commit.
 
 ### Task 1.3: `lib/spiral.py`
+
 **Produces:** `archimedean_offset(t, pitch_m, lin_speed_mps) -> (dx,dy)`; `spiral_waypoints(max_radius_m, pitch_m, pts_per_rev) -> np.ndarray[N,2]`.
+
 - [ ] **Test:** waypoints start at ~(0,0); radius monotonically increases; max radius ≤ `max_radius_m`; consecutive spacing ≈ arc consistent with `pts_per_rev`. `archimedean_offset(0,…)==(0,0)`.
-- [ ] Run → FAIL. Implement (r=pitch*θ/2π, x=r·cosθ, y=r·sinθ). Run → PASS. Commit.
+- [ ] Run → FAIL. Implement (r=pitch\*θ/2π, x=r·cosθ, y=r·sinθ). Run → PASS. Commit.
 
 ### Task 1.4: `lib/wrench.py`
+
 **Produces:** `contact_detected(fz, baseline, threshold_n) -> bool`; `class BaselineEstimator` (EMA of free-space Fz; `update(fz)`, `value`).
+
 - [ ] **Test:** baseline 0, fz -6, thr 5 → True; fz -3 → False. EMA converges to a constant input. (Fz sign: contact pushes up → negative Fz on EE in base; test both polarities via `abs(fz-baseline)>thr`.)
 - [ ] Run → FAIL. Implement. Run → PASS. Commit.
 
 ### Task 1.5: `lib/safety.py`
+
 **Produces:** `clamp_to_workspace(xyz, aabb) -> xyz`; `clamp_step(prev_xyz, target_xyz, max_step_m) -> xyz`; `force_exceeded(wrench6, caps6) -> bool`.
+
 - [ ] **Test:** point outside AABB clipped to face; `clamp_step` with target 0.1 m away and max 0.002 → moves exactly 0.002 toward target; wrench [0,0,30,…] with cap 25 on Fz → True.
 - [ ] Run → FAIL. Implement. Run → PASS. Commit.
 
 ### Task 1.6: `lib/servoing.py`
+
 **Produces:** `ibvs_correction(hole_uv, image_center, depth_m, fx, fy, gain) -> (dx_base, dy_base)`.
+
 - [ ] **Test:** hole at image center → (0,0). Hole offset +10 px in u with fx=600, depth=0.1, gain=1 → dx = gain·(du·depth/fx) within tol; sign matches the tool→base convention documented in the file.
 - [ ] Run → FAIL. Implement. Run → PASS. Commit.
 
 ### Task 1.7: `lib/insertion_fsm.py` (the crown jewel)
+
 **Produces:**
+
 - `@dataclass Sensors(ee_xyz, ee_quat, fz, fz_baseline, t)`
 - `@dataclass Decision(desired_xyz, desired_quat, gripper_cmd, next_state, done, error)`
 - `class InsertionFSM` with `__init__(self, socket_xyz, params)` and `step(self, state: str, s: Sensors) -> Decision`. States: `IDLE→MOVE_ABOVE→DESCEND_TO_CONTACT→SEARCH_SPIRAL→PUSH_INSERT→CONFIRM→RETRACT→DONE`, plus `ERROR`.
@@ -156,6 +184,7 @@ robo67_insertion/
 - [ ] Run → FAIL. Implement (pure; uses `spiral`, `wrench`; no rclpy). Run → PASS. Commit.
 
 ### Task 1.8: Merge + full suite
+
 - [ ] Merge all worktree branches back to `jearningers`. Run `python3 -m pytest robo67_insertion/test -q` → all green. Commit merge.
 
 ---
@@ -163,18 +192,22 @@ robo67_insertion/
 ## Phase 2 — ROS nodes (PARALLEL after Phase 1 merged)
 
 ### Task 2.1: `nodes/socket_detector_node.py`
+
 - [ ] Subscribe/grab C920 (`cv2.VideoCapture(8)` or sensor_msgs Image if a camera node exists). On each frame: `detect_holes` → best → load `c920_homography.npz` → `pixel_to_base` → publish `/robo67/socket_pose` (PoseStamped, identity quat, frame `panda_link0`) + `/robo67/socket_detection`.
 - [ ] Test: launch node with a recorded image source; `ros2 topic echo /robo67/socket_pose` shows a stable pose. Commit.
 
 ### Task 2.2: `nodes/calibration_node.py`
+
 - [ ] Robot-as-groundtruth: command MMC to N known base XY at **socket-top Z**, capture C920, detect a gripper tag / peg tip pixel, collect (pixel, base_xy) pairs, `fit_homography`, save `config/c920_homography.npz`; print reprojection error.
 - [ ] Test (HARDWARE, Phase 4): residual < spiral max_radius. Commit.
 
 ### Task 2.3: `nodes/insertion_orchestrator_node.py`
+
 - [ ] On start: call `/set_controllers` → cartesian; set stiffness via `…/parameters`. Subscribe FrankaState (extract `o_t_ee`→xyz/quat via geometry, `o_f_ext_hat_k`[2]→fz) and `/robo67/socket_pose`. Run `InsertionFSM.step` at ~50 Hz; each `Decision.desired_xyz` → `safety` clamps → publish `CartesianImpedanceGoal`. On REFLEX/error → call error_recovery (bounded). Watchdog on stale state.
 - [ ] Test: see Phase 3. Commit.
 
 ### Task 2.4: `nodes/d405_servo_node.py` + launch + config wiring
+
 - [ ] D405 frames (pyrealsense2 or `/dev/video6`); detect hole; `ibvs_correction`; publish a refinement offset or a refined `/robo67/socket_pose`. Used in milestone B+.
 - [ ] `launch/sim.launch.py` (orchestrator + detector, sim params), `launch/hardware.launch.py` (+ calibration, hardware params). Commit.
 
@@ -183,6 +216,7 @@ robo67_insertion/
 ## Phase 3 — Sim integration (sim)
 
 ### Task 3.1: End-to-end in MuJoCo against a hardcoded socket
+
 - [ ] Launch sim; switch to cartesian impedance; publish a **fixed** `/robo67/socket_pose` (table center).
 - [ ] Run orchestrator. Validate: controller activates; ~50 Hz streaming; FrankaState parsed; **descend-to-contact** against the floor/a box registers Fz; spiral motion visible; FSM walks the states; safety clamps prevent out-of-AABB / large steps; error-recovery path callable.
 - [ ] Set the real `workspace AABB` in `config/robo67.yaml` from observed reachable sim poses. Commit.
@@ -193,6 +227,7 @@ robo67_insertion/
 ## Phase 4 — Calibration (HARDWARE · arm mutex)
 
 ### Task 4.1
+
 - [ ] `flock /tmp/robo67_arm.lock`. Lock C920 exposure. Desk: unlock joints + FCI (Playwright `https://192.168.1.67/desk/` or manual). Bring up real arm with MMC.
 - [ ] Run `calibration_node` → homography at socket-top height → save + verify reprojection error. **Do not move C920 after.** Commit `config/c920_homography.npz`.
 
@@ -201,6 +236,7 @@ robo67_insertion/
 ## Phase 5 — Milestone A (HARDWARE · arm mutex)
 
 ### Task 5.1
+
 - [ ] Human pre-clamps a peg. Place a socket in view. Run `hardware.launch.py`.
 - [ ] Tune Fz contact threshold + contact-phase stiffness so descend is gentle and the spiral seats the peg. Achieve **one clean insertion** (peg seated, FSM→DONE). Record video. Commit any param tuning.
 - [ ] Acceptance: 1 successful insertion, no reflex abort, retract clean.
@@ -210,6 +246,7 @@ robo67_insertion/
 ## Phase 6 — Milestone B (HARDWARE)
 
 ### Task 6.1
+
 - [ ] `detect_holes` returns multiple sockets; pick target (nearest / by radius if sizes differ). Add **auto-retry** loop (re-detect + re-spiral on miss, bounded). Optionally integrate D405 IBVS refinement before descend.
 - [ ] Acceptance: **3 consecutive** insertions with the socket re-placed randomly each time.
 
@@ -218,12 +255,77 @@ robo67_insertion/
 ## Phase 7 — Milestone C (STRETCH)
 
 ### Task 7.1
+
 - [ ] Detect a colored cylinder peg on its stand (HSV color + D405 depth) → compute grasp pose → `grasp` action → lift → run insertion FSM. GPU escape hatch only if classical grasp detection is unreliable.
 - [ ] Acceptance: ≥1 fully autonomous pick + insert.
 
 ---
 
+## Phase 8 — Architecture deepening implementation (SEQUENTIAL)
+
+> Execute after baseline behavior is stable. Order is fixed to maximize leverage and preserve locality.
+
+### Task 8.1: Candidate 1 — canonical insertion intent seam
+
+- [ ] Create `robo67_insertion/robo67_insertion/lib/insertion_intent.py` with canonical insertion phase semantics.
+- [ ] Create `robo67_insertion/robo67_insertion/lib/command_path_adapters.py` with two adapters:
+  - MMC command path adapter
+  - Impedance command path adapter
+- [ ] Refactor:
+  - `robo67_insertion/robo67_insertion/nodes/insertion_orchestrator_node.py`
+  - `robo67_insertion/robo67_insertion/nodes/hardware_insertion_node.py`
+    to consume one insertion intent interface.
+- [ ] Add tests:
+  - `robo67_insertion/test/test_insertion_intent.py`
+  - `robo67_insertion/test/test_command_path_adapters.py`
+- [ ] Acceptance: one canonical transition model exercised by both command paths, adapter conformance tests green.
+
+### Task 8.2: Candidate 3 — contact lifecycle module
+
+- [ ] Create `robo67_insertion/robo67_insertion/lib/contact_lifecycle.py` that owns baseline update/freeze and contact detection lifecycle.
+- [ ] Replace node-level baseline choreography in `robo67_insertion/robo67_insertion/nodes/insertion_orchestrator_node.py` with the new seam.
+- [ ] Add tests:
+  - `robo67_insertion/test/test_contact_lifecycle.py`
+- [ ] Acceptance: lifecycle behavior tested through one interface; orchestrator no longer owns freeze/update policy.
+
+### Task 8.3: Candidate 4 — safety envelope composition seam
+
+- [ ] Create `robo67_insertion/robo67_insertion/lib/safety_envelope.py` to compose workspace clamp, step clamp, and force abort in one module interface.
+- [ ] Add safety profiles for command-path anchor policy:
+  - MMC safety profile (anchor on measured EE)
+  - Impedance safety profile (anchor on previous command)
+- [ ] Refactor both orchestrator nodes to call one safety envelope seam.
+- [ ] Add tests:
+  - `robo67_insertion/test/test_safety_envelope.py`
+- [ ] Acceptance: safety ordering and abort behavior validated at seam level for both profiles.
+
+### Task 8.4: Candidate 2 — pixel-to-base mapping seam
+
+- [ ] Create `robo67_insertion/robo67_insertion/lib/pixel_mapping.py` with shared mapping interface.
+- [ ] Implement adapters:
+  - Homography mapping adapter (from `geometry.py` behavior)
+  - Pinhole mapping adapter (from `servoing.py` behavior)
+- [ ] Refactor:
+  - `robo67_insertion/robo67_insertion/nodes/socket_detector_node.py`
+  - `robo67_insertion/robo67_insertion/nodes/d405_servo_node.py`
+    to use the mapping seam.
+- [ ] Add tests:
+  - `robo67_insertion/test/test_pixel_mapping.py`
+- [ ] Acceptance: cross-adapter consistency scenarios pass; node callers no longer carry mapping-model conditionals.
+
+### Task 8.5: Suite and cleanup
+
+- [ ] Run full tests: `python3 -m pytest robo67_insertion/test -q`.
+- [ ] Delete superseded shallow tests only when equivalent seam-level coverage exists.
+- [ ] Update docs:
+  - `docs/architecture/deepening-roadmap-2026-06-25.md` (mark completion)
+  - `docs/adr/0001-canonical-insertion-intent-module.md` (implementation notes)
+- [ ] Acceptance: deepened seams are primary test surfaces and code paths are parity-consistent.
+
+---
+
 ## Self-Review notes
-- Spec coverage: A (Ph0–5), B (Ph6), C (Ph7); calibration (Ph4); sim parity (Ph3); safety (1.5 + 2.3); D405 (1.6 + 2.4 + 6/7). ✓
+
+- Spec coverage: A (Ph0–5), B (Ph6), C (Ph7); calibration (Ph4); sim parity (Ph3); safety (1.5 + 2.3); D405 (1.6 + 2.4 + 6/7); architecture deepening (Ph8). ✓
 - Types consistent: `Hole`, `Sensors`, `Decision`, `fit_homography`/`pixel_to_base` used identically across tasks. ✓
-- No placeholders: each lib task has concrete test criteria + algorithm. ROS/hardware tasks use the milestone bars as acceptance tests (can't unit-test without the arm). ✓
+- No placeholders: each lib task has concrete test criteria + algorithm. ROS/hardware tasks use the milestone bars as acceptance tests (can't unit-test without the arm). Deepening tasks include explicit seam tests and acceptance checks. ✓
