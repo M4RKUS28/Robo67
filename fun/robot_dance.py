@@ -44,22 +44,28 @@ Useful flags:
 ------------------------------------------------------------------------------
 THE "spin" ROUTINE (--routine spin)
 
-Expresses a spin-around / stand-tall / spin-the-hand breakdance purely through
-the *Cartesian impedance* controller (we never touch the joint-position
-controller -- it has known bad motor behaviour):
+A high-energy ~60 s breakdance, driven purely through the *Cartesian impedance*
+controller (we never touch the joint-position controller -- it has known bad
+motor behaviour). The sequence:
 
-  * "spin around"  -> the end-effector orbits the base z-axis, which IS joint 1
+  whirl+bob -> dip down -> low helicopter -> rocket up -> hand-spin frenzy
+            -> corkscrew down -> freeze pop -> return home
+
+The headline moves:
+  * "spin / whirl" -> the end-effector orbits the base z-axis, which IS joint 1
                       rotating. NOTE: a real Panda CANNOT do a full 360 -- joint
-                      1 is limited to +/-166 deg -- so the "spin" is the widest
+                      1 is limited to +/-166 deg -- so every "spin" is the widest
                       safe back-and-forth sweep, not a continuous turn.
-  * "stand up"     -> the arm rises to a tall, near-vertical pose.
-  * "spin hands"   -> at the top, the flange ("the hand") yaw spins back and
-                      forth (again capped by joint 7's +/-166 deg range).
+  * "rocket up"    -> the arm shoots up to a tall, near-vertical pose.
+  * "hand spin"    -> at the top, the flange ("the hand") yaw spins fast (again
+                      capped by joint 7's +/-166 deg range).
 
 Unlike the gentle dance it commands *absolute* base-frame poses (so it can swing
-far from the start), but a dedicated SpinLimiter still enforces the reachable
-sphere, a table floor, the px/R22 controller quirks, and hard speed caps. It
-ramps smoothly from wherever the arm currently is. Prototype in MuJoCo first.
+far from the start) and runs hotter (default caps 0.8 m/s / 2.2 rad/s, still
+well under the Panda spec of 1.7 m/s / 2.5 rad/s). A dedicated SpinLimiter still
+enforces the reachable sphere, a table floor, the px/R22 controller quirks, and
+the hard speed caps; it ramps smoothly from wherever the arm currently is.
+Clear a WIDE area, and prototype in MuJoCo first.
 """
 
 import argparse
@@ -267,12 +273,14 @@ def total_duration(time_scale=1.0):
 # comfortably inside those limits.
 # ----------------------------------------------------------------------------
 
-ORBIT_R = 0.38        # orbit radius about the base z-axis (m)
-ORBIT_H = 0.35        # orbit height above the base (m)
+ORBIT_R = 0.42        # orbit radius about the base z-axis (m)
+H_MID = 0.40          # mid orbit height above the base (m)
+H_LOW = 0.22          # low "helicopter" height (m)
+H_BOB = 0.10          # vertical bob amplitude while whirling (m)
 TALL_PX = 0.12        # x of the tall "standing" pose (kept > 0 for px quirk)
-TALL_Z = 0.62         # z of the tall "standing" pose (m)
+TALL_Z = 0.66         # z of the tall "standing" pose (m)
 AZIM_MAX = 2.5        # base-spin sweep amplitude (rad) -- < joint-1 limit 2.8973
-HAND_YAW_MAX = 2.5    # flange-spin sweep amplitude (rad) -- < joint-7 limit 2.8973
+HAND_YAW = 1.3        # flange-spin sweep amplitude (rad) -- < joint-7 limit 2.8973
 SPIN_HOME_P = (0.40, 0.0, 0.45)   # safe pose to settle back to at the end
 
 
@@ -280,49 +288,96 @@ def _lerp(a, b, s):
     return a + (b - a) * s
 
 
+def _orbit(az, z):
+    # Place the EE on the orbit circle at azimuth az (= base "spin" angle).
+    return (ORBIT_R * math.cos(az), ORBIT_R * math.sin(az), z)
+
+
 def _sp_ready(t, dur):
-    # Hold at the orbit start (tool pointing down). The SpinLimiter ramps the
-    # arm here from wherever it actually is, so this segment absorbs the approach.
-    return (ORBIT_R, 0.0, ORBIT_H), (math.pi, 0.0, 0.0)
+    # Hold at the orbit start (tool down). The SpinLimiter ramps the arm here
+    # from wherever it actually is, so this short segment absorbs the approach.
+    return _orbit(0.0, H_MID), (math.pi, 0.0, 0.0)
 
 
-def _sp_spin(t, dur):
-    # Orbit the base z-axis: azimuth 0 -> +max -> 0 -> -max -> 0 over the segment
-    # (one full period, so it ends exactly where it started -> continuous seam).
+def _sp_whirl(t, dur):
+    # Whirl around the base while bobbing up/down -- one full azimuth sweep
+    # (0->+max->0->-max->0) with two bobs, so it ends where it started.
     f = 1.0 / dur
     az = AZIM_MAX * math.sin(2 * math.pi * f * t)
-    return (ORBIT_R * math.cos(az), ORBIT_R * math.sin(az), ORBIT_H), \
-           (math.pi, 0.0, az)
+    z = H_MID + H_BOB * math.sin(2 * math.pi * (2 * f) * t)
+    return _orbit(az, z), (math.pi, 0.0, az)
 
 
-def _sp_standup(t, dur):
-    # Rise from the orbit pose to the tall, near-vertical pose; roll pi -> 0
-    # rolls the tool from pointing-down to pointing-up as it stands.
+def _sp_dip(t, dur):
+    # Keep whirling but sink down to the low "helicopter" height.
+    f = 1.0 / dur
     s = smoothstep(t / dur)
-    return (_lerp(ORBIT_R, TALL_PX, s), 0.0, _lerp(ORBIT_H, TALL_Z, s)), \
+    az = 2.2 * math.sin(2 * math.pi * f * t)
+    return _orbit(az, _lerp(H_MID, H_LOW, s)), (math.pi, 0.0, az)
+
+
+def _sp_heli(t, dur):
+    # Low, fast "helicopter" spin with the tool blade pitching back and forth.
+    f = 1.0 / dur
+    az = 1.9 * math.sin(2 * math.pi * f * t)
+    pitch = 0.4 * math.sin(2 * math.pi * (2 * f) * t)
+    return _orbit(az, H_LOW), (math.pi, pitch, az)
+
+
+def _sp_rocket(t, dur):
+    # Shoot up from the low orbit to the tall vertical pose; tool rolls up.
+    s = smoothstep(t / dur)
+    p0 = _orbit(0.0, H_LOW)
+    return (_lerp(p0[0], TALL_PX, s), 0.0, _lerp(H_LOW, TALL_Z, s)), \
            (_lerp(math.pi, 0.0, s), 0.0, 0.0)
 
 
-def _sp_hands(t, dur):
-    # Stand tall and spin the flange ("the hand"): yaw 0 -> +max -> 0 -> -max -> 0.
-    f = 1.0 / dur
-    yaw = HAND_YAW_MAX * math.sin(2 * math.pi * f * t)
-    return (TALL_PX, 0.0, TALL_Z), (0.0, 0.0, yaw)
+def _sp_handspin(t, dur):
+    # Stand tall and spin the flange ("the hand") fast -- three rapid sweeps,
+    # with a small vertical bob for flair. Starts/ends at yaw 0, z TALL_Z.
+    yaw = HAND_YAW * math.sin(2 * math.pi * (3.0 / dur) * t)
+    z = TALL_Z + 0.04 * math.sin(2 * math.pi * (2.0 / dur) * t)
+    return (TALL_PX, 0.0, z), (0.0, 0.0, yaw)
+
+
+def _sp_corkscrew(t, dur):
+    # Corkscrew back down: spiral outward + downward while spinning, tool rolls
+    # from up (0) back to down (pi). Ends on the mid orbit at azimuth 0.
+    s = smoothstep(t / dur)
+    az = 1.5 * math.sin(2 * math.pi * (1.0 / dur) * t)
+    rad = _lerp(TALL_PX, ORBIT_R, s)
+    z = _lerp(TALL_Z, H_MID, s)
+    return (rad * math.cos(az), rad * math.sin(az), z), \
+           (_lerp(0.0, math.pi, s), 0.0, az)
+
+
+def _sp_freeze(t, dur):
+    # Dramatic pop-and-hold: a quick pitch flick that eases in and back out.
+    pitch = 0.6 * window(t / dur)
+    return _orbit(0.0, H_MID), (math.pi, pitch, 0.0)
 
 
 def _sp_return(t, dur):
-    # Ease from the tall pose back to a safe home, tool rolling back down.
+    # Ease from the mid orbit back to a safe home pose.
     s = smoothstep(t / dur)
-    return (_lerp(TALL_PX, SPIN_HOME_P[0], s), 0.0, _lerp(TALL_Z, SPIN_HOME_P[2], s)), \
-           (_lerp(0.0, math.pi, s), 0.0, 0.0)
+    p0 = _orbit(0.0, H_MID)
+    return (_lerp(p0[0], SPIN_HOME_P[0], s), 0.0, _lerp(H_MID, SPIN_HOME_P[2], s)), \
+           (math.pi, 0.0, 0.0)
 
 
+# A ~60 s, high-energy breakdance. Segments are tuned to peak just under the
+# raised spin caps (v_max 0.8 m/s, w_max 2.2 rad/s -- still well inside the
+# Panda spec of 1.7 m/s / 2.5 rad/s) and are continuous at every seam.
 SPIN_SEGMENTS = [
-    ("ready",        5.0, _sp_ready),
-    ("spin around", 16.0, _sp_spin),
-    ("stand up",     6.0, _sp_standup),
-    ("spin hands",  12.0, _sp_hands),
-    ("return home",  6.0, _sp_return),
+    ("ready",            3.0, _sp_ready),
+    ("whirl + bob",      9.0, _sp_whirl),
+    ("dip down",         8.0, _sp_dip),
+    ("low helicopter",   7.0, _sp_heli),
+    ("rocket up",        5.0, _sp_rocket),
+    ("hand-spin frenzy", 12.0, _sp_handspin),
+    ("corkscrew down",   8.0, _sp_corkscrew),
+    ("freeze pop",       3.0, _sp_freeze),
+    ("return home",      4.0, _sp_return),
 ]
 
 
@@ -735,10 +790,10 @@ def build_parser():
                    help=">1 slower, <1 faster")
     p.add_argument("--amp-scale", type=float, default=1.0,
                    help="<1 smaller/gentler motions")
-    p.add_argument("--v-max", type=float, default=0.4,
-                   help="hard linear speed cap (m/s)")
-    p.add_argument("--w-max", type=float, default=2.0,
-                   help="hard angular speed cap (rad/s)")
+    p.add_argument("--v-max", type=float, default=None,
+                   help="hard linear speed cap (m/s); default 0.4 dance / 0.8 spin")
+    p.add_argument("--w-max", type=float, default=None,
+                   help="hard angular speed cap (rad/s); default 2.0 dance / 2.2 spin")
     p.add_argument("--countdown", type=int, default=3)
     p.add_argument("--state-timeout", type=float, default=5.0)
     p.add_argument("--loop", action="store_true")
@@ -753,6 +808,12 @@ def build_parser():
 
 def main():
     args = build_parser().parse_args()
+    # Routine-specific speed caps (overridable via --v-max/--w-max). The spin
+    # routine runs hotter -- still well under the Panda spec (1.7 m/s, 2.5 rad/s).
+    if args.v_max is None:
+        args.v_max = 0.8 if args.routine == "spin" else 0.4
+    if args.w_max is None:
+        args.w_max = 2.2 if args.routine == "spin" else 2.0
     if args.selftest:
         return selftest(args)
     return run_ros(args)
