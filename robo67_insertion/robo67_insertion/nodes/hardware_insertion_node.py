@@ -57,8 +57,9 @@ import time
 # numpy is required for the libs; import lazily-friendly but it is always present.
 import numpy as np
 
-from robo67_insertion.lib.spiral import archimedean_offset
-from robo67_insertion.lib.wrench import BaselineEstimator, contact_detected
+from robo67_insertion.lib.command_path_adapters import ImpedanceCommandPathAdapter
+from robo67_insertion.lib.insertion_intent import IntentParams, IntentSensors
+from robo67_insertion.lib.wrench import BaselineEstimator
 from robo67_insertion.lib import safety
 
 
@@ -82,138 +83,43 @@ def R_to_rowmajor(R):
 
 
 # ---------------------------------------------------------------------------
-# Insertion sequence -- absolute, rate-limited equilibrium targets.
-# This is a small explicit state machine purpose-built for the soft real
-# impedance controller (see module docstring). It reuses the tested pure libs
-# (spiral / wrench / safety) for the parts that are controller-agnostic.
+# Insertion intent (canonical seam) -> impedance command path.
+# The phase-transition logic lives ONLY in lib.insertion_intent (ADR-0001).
+# Here we build the ImpedanceCommandPathAdapter, which translates each
+# canonical target into a below-surface equilibrium goal for the soft real
+# impedance controller (force F needs a gap F/pos_stiff). The node still
+# rate-limits the command toward that goal and feeds back sensors.
 # ---------------------------------------------------------------------------
 
 STATES = ("MOVE_ABOVE", "DESCEND_TO_CONTACT", "SEARCH_SPIRAL",
           "PUSH_INSERT", "CONFIRM", "RETRACT", "DONE", "ERROR")
 
 
-class InsertionParams:
-    def __init__(self, **kw):
-        self.standoff_m = kw.get("standoff_m", 0.05)
-        self.approach_tol_m = kw.get("approach_tol_m", 0.006)
-        self.contact_fz_n = kw.get("contact_fz_n", 4.0)
-        self.press_force_n = kw.get("press_force_n", 3.0)   # gentle push during spiral
-        self.insert_press_n = kw.get("insert_press_n", 6.0)  # push to seat
-        self.pos_stiff = kw.get("pos_stiff", 200.0)          # must match controller
-        self.max_press_depth_m = kw.get("max_press_depth_m", 0.05)
-        self.insert_depth_m = kw.get("insert_depth_m", 0.03)
-        self.z_drop_threshold_m = kw.get("z_drop_threshold_m", 0.004)
-        self.spiral_pitch_m = kw.get("spiral_pitch_m", 0.0025)
-        self.spiral_speed_mps = kw.get("spiral_speed_mps", 0.004)
-        self.spiral_max_radius_m = kw.get("spiral_max_radius_m", 0.012)
-        self.retry_limit = kw.get("retry_limit", 3)
+def build_intent_adapter(socket_xyz, *, pos_stiff=200.0, press_force_n=3.0,
+                         insert_press_n=6.0, max_press_depth_m=0.05,
+                         standoff_m=0.05, contact_fz_n=4.0, insert_depth_m=0.03,
+                         spiral_max_radius_m=0.012, R=None):
+    """Construct the impedance command-path adapter with real-arm defaults.
 
-    @property
-    def press_gap_m(self):
-        return self.press_force_n / max(1.0, self.pos_stiff)
-
-    @property
-    def insert_gap_m(self):
-        return self.insert_press_n / max(1.0, self.pos_stiff)
-
-
-class InsertionSequence:
-    """Computes the *goal* equilibrium for the current state. Pure logic; the
-    node rate-limits the command toward this goal and feeds back sensors."""
-
-    def __init__(self, socket_xyz, params: InsertionParams):
-        self.socket = np.asarray(socket_xyz, float).reshape(3)
-        self.p = params
-        self.state = "MOVE_ABOVE"
-        self.contact_z = None
-        self.hole_xy = None
-        self.spiral_t0 = None
-        self.retries = 0
-        self.error = None
-        self.done = False
-
-    def above(self):
-        return self.socket + np.array([0.0, 0.0, self.p.standoff_m])
-
-    def step(self, ee_xyz, fz, fz_baseline, t):
-        """Return (goal_xyz, info). Updates internal state."""
-        p = self.p
-        ee = np.asarray(ee_xyz, float).reshape(3)
-        sx, sy, sz = self.socket
-        st = self.state
-
-        if st == "MOVE_ABOVE":
-            goal = self.above()
-            if np.linalg.norm(ee - goal) <= p.approach_tol_m:
-                self.state = "DESCEND_TO_CONTACT"
-            return goal, st
-
-        if st == "DESCEND_TO_CONTACT":
-            if contact_detected(fz, fz_baseline, p.contact_fz_n):
-                self.contact_z = float(ee[2])
-                self.spiral_t0 = t
-                self.retries = 0
-                self.state = "SEARCH_SPIRAL"
-                return np.array([sx, sy, self.contact_z - p.press_gap_m]), st
-            # command equilibrium below the surface to build force
-            return np.array([sx, sy, sz - p.max_press_depth_m]), st
-
-        if st == "SEARCH_SPIRAL":
-            elapsed = t - self.spiral_t0
-            dx, dy = archimedean_offset(elapsed, p.spiral_pitch_m, p.spiral_speed_mps)
-            if math.hypot(dx, dy) > p.spiral_max_radius_m:
-                self.retries += 1
-                self.spiral_t0 = t
-                dx = dy = 0.0
-                if self.retries > p.retry_limit:
-                    self.error = "spiral search exhausted"
-                    self.state = "ERROR"
-                    self.done = True
-                    return ee, st
-            # peg dropped into the hole?
-            if self.contact_z is not None and ee[2] < self.contact_z - p.z_drop_threshold_m:
-                self.hole_xy = ee[:2].copy()
-                self.state = "PUSH_INSERT"
-                return np.array([ee[0], ee[1], self.contact_z - p.insert_gap_m]), st
-            goal_z = (self.contact_z if self.contact_z is not None else sz) - p.press_gap_m
-            return np.array([sx + dx, sy + dy, goal_z]), st
-
-        if st == "PUSH_INSERT":
-            hx, hy = (self.hole_xy if self.hole_xy is not None else (sx, sy))
-            target_z = self.contact_z - p.insert_depth_m
-            if ee[2] <= target_z + 0.5 * p.z_drop_threshold_m:
-                self.state = "CONFIRM"
-            return np.array([hx, hy, self.contact_z - p.insert_gap_m]), st
-
-        if st == "CONFIRM":
-            depth_ok = ee[2] <= self.contact_z - 0.8 * p.insert_depth_m
-            if depth_ok:
-                self.state = "RETRACT"
-                return self.above(), st
-            self.retries += 1
-            self.spiral_t0 = t
-            if self.retries > p.retry_limit:
-                self.error = "insertion not confirmed"
-                self.state = "ERROR"
-                self.done = True
-                return ee, st
-            self.state = "SEARCH_SPIRAL"
-            return ee, st
-
-        if st == "RETRACT":
-            goal = self.above()
-            if ee[2] >= self.contact_z:
-                self.state = "DONE"
-                self.done = True
-            return goal, st
-
-        if st == "DONE":
-            self.done = True
-            return self.above(), st
-
-        # ERROR / unknown -> hold
-        self.done = True
-        return ee, st
+    Canonical (controller-agnostic) params carry the hardware tunings that
+    historically lived in ``InsertionParams``; controller quirks (stiffness,
+    press forces, held R) are the adapter's own.
+    """
+    params = IntentParams(
+        standoff_m=standoff_m,
+        approach_tol_m=0.006,
+        contact_fz_threshold_n=contact_fz_n,
+        insert_depth_m=insert_depth_m,
+        z_drop_threshold_m=0.004,
+        retry_limit=3,
+        spiral_pitch_m=0.0025,
+        spiral_speed_mps=0.004,
+        spiral_max_radius_m=spiral_max_radius_m,
+    )
+    return ImpedanceCommandPathAdapter(
+        socket_xyz, params, pos_stiff=pos_stiff, press_force_n=press_force_n,
+        insert_press_n=insert_press_n, max_press_depth_m=max_press_depth_m, R=R,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -223,9 +129,10 @@ class InsertionSequence:
 # ---------------------------------------------------------------------------
 
 def selftest(args):
-    p = InsertionParams(pos_stiff=200.0)
     socket = np.array([0.45, 0.0, 0.10])
-    seq = InsertionSequence(socket, p)
+    adapter = build_intent_adapter(socket, pos_stiff=200.0)
+    pos_stiff = adapter.pos_stiff
+    insert_depth_m = adapter.module.params.insert_depth_m
 
     rate = 100.0
     dt = 1.0 / rate
@@ -240,7 +147,7 @@ def selftest(args):
     table_z = socket[2]
     hole_xy = socket[:2] + np.array([0.006, 0.0])   # 6 mm alignment error
     hole_r = 0.005
-    hole_depth = p.insert_depth_m + 0.005
+    hole_depth = insert_depth_m + 0.005
 
     ee = np.array([0.45, 0.0, 0.30])
     cmd = ee.copy()
@@ -253,6 +160,8 @@ def selftest(args):
     min_z = 1e9
     prev_cmd = None
     seen = set()
+    phase = "MOVE_ABOVE"
+    error = None
     t = 0.0
     n = 0
     while n < 200000:
@@ -260,12 +169,15 @@ def selftest(args):
         in_hole = (math.hypot(ee[0] - hole_xy[0], ee[1] - hole_xy[1]) <= hole_r)
         floor = table_z - (hole_depth if in_hole else 0.0)
         gap = max(0.0, ee[2] - cmd[2]) if ee[2] <= floor + 1e-6 else 0.0
-        fz = p.pos_stiff * gap  # reaction force magnitude (>=0)
+        fz = pos_stiff * gap  # reaction force magnitude (>=0)
 
-        if seq.state in ("MOVE_ABOVE",):
+        if phase == "MOVE_ABOVE":
             base.update(fz)
-        goal, st = seq.step(ee, fz, base.value, t)
-        seen.add(st)
+        s = IntentSensors(ee_xyz=tuple(float(v) for v in ee), fz=fz,
+                          fz_baseline=base.value, t=t)
+        out = adapter.step(phase, s)
+        goal = np.asarray(out.goal_xyz, float)
+        seen.add(phase)
 
         # rate-limit the command toward goal, then safety clamp
         cmd = safety.clamp_step(cmd, goal, max_step)
@@ -283,10 +195,13 @@ def selftest(args):
 
         n += 1
         t += dt
-        if seq.done:
+        phase = out.next_phase
+        error = out.error
+        if out.done:
+            seen.add(phase)
             break
 
-    ok = (seq.state == "DONE"
+    ok = (phase == "DONE"
           and "DESCEND_TO_CONTACT" in seen
           and "SEARCH_SPIRAL" in seen
           and "PUSH_INSERT" in seen
@@ -295,7 +210,7 @@ def selftest(args):
           and min_z >= z_floor - 1e-9)
     print("=== hardware_insertion self-test ===")
     print(f"states visited : {sorted(seen)}")
-    print(f"final state    : {seq.state} (done={seq.done}, err={seq.error})")
+    print(f"final state    : {phase} (done={out.done}, err={error})")
     print(f"ticks          : {n}  ({t:.2f}s sim)")
     print(f"max cmd speed  : {max_speed:.4f} m/s (cap {vmax})")
     print(f"min ee z       : {min_z:.4f} m (floor {z_floor})")
@@ -317,16 +232,6 @@ def run_ros(args):
     except Exception:
         ErrorRecovery = None
 
-    p = InsertionParams(
-        standoff_m=args.standoff,
-        contact_fz_n=args.contact_fz,
-        press_force_n=args.press_force,
-        insert_press_n=args.insert_press,
-        pos_stiff=args.pos_stiff,
-        max_press_depth_m=args.max_press_depth,
-        insert_depth_m=args.insert_depth,
-        spiral_max_radius_m=args.spiral_max_radius,
-    )
     aabb = np.array(args.workspace_aabb, float).reshape(3, 2)
     caps = [args.f_abort, args.f_abort, args.f_abort, 5.0, 5.0, 5.0]
     max_step = args.v_max / args.rate
@@ -425,9 +330,19 @@ def run_ros(args):
     else:
         node.get_logger().error("must give --socket-xyz or --socket-from-current")
         node.destroy_node(); rclpy.shutdown(); return 1
+
+    # Canonical insertion seam -> impedance command path. Holds the captured
+    # (tool-down) orientation; the loop rate-limits the command toward each goal.
+    adapter = build_intent_adapter(
+        socket, pos_stiff=args.pos_stiff, press_force_n=args.press_force,
+        insert_press_n=args.insert_press, max_press_depth_m=args.max_press_depth,
+        standoff_m=args.standoff, contact_fz_n=args.contact_fz,
+        insert_depth_m=args.insert_depth, spiral_max_radius_m=args.spiral_max_radius,
+        R=node.R,
+    )
     node.get_logger().info(f"socket TOP center: {socket.tolist()}  "
-                           f"(press_gap={p.press_gap_m*1000:.1f}mm, "
-                           f"insert_gap={p.insert_gap_m*1000:.1f}mm)")
+                           f"(press_gap={adapter.press_gap_m*1000:.1f}mm, "
+                           f"insert_gap={adapter.insert_gap_m*1000:.1f}mm)")
 
     # sanity: socket must be inside workspace
     if not np.all((socket >= aabb[:, 0]) & (socket <= aabb[:, 1])):
@@ -449,7 +364,7 @@ def run_ros(args):
             node.get_logger().info(f"inserting in {c} ...")
             time.sleep(1.0)
 
-    seq = InsertionSequence(socket, p)
+    phase = "MOVE_ABOVE"
     base = BaselineEstimator(alpha=0.05, initial=float(node.wrench[2]))
     cmd = node.ee.copy()
     msg = Float64MultiArray()
@@ -479,16 +394,20 @@ def run_ros(args):
                 aborted = True
                 break
 
-            if seq.state in ("MOVE_ABOVE",):
+            if phase == "MOVE_ABOVE":
                 base.update(fz)
 
-            goal, st = seq.step(ee, fz, base.value, t)
+            s = IntentSensors(ee_xyz=tuple(float(v) for v in ee), fz=fz,
+                              fz_baseline=base.value, t=t)
+            out = adapter.step(phase, s)
+            goal = np.asarray(out.goal_xyz, float)
+            st = phase
 
             # rate-limit the COMMAND toward the goal, then safety-clamp
             cmd = safety.clamp_step(cmd, goal, max_step)
             cmd = safety.clamp_to_workspace(cmd, aabb)
             # never command an equilibrium more than max_press_depth below socket top
-            cmd[2] = max(cmd[2], socket[2] - p.max_press_depth_m)
+            cmd[2] = max(cmd[2], socket[2] - args.max_press_depth)
 
             if st != last_state:
                 node.get_logger().info(
@@ -496,11 +415,8 @@ def run_ros(args):
                     f"fz={fz:.2f} base={base.value:.2f} cmd_z={cmd[2]:.3f}")
                 last_state = st
 
-            px = cmd[0] if abs(cmd[0]) > 1e-6 else 1e-6
-            R = node.R
-            if abs(R[2][2]) < 1e-6:
-                R = R.copy(); R[2][2] = -1e-6
-            data = [px, float(cmd[1]), float(cmd[2])] + R_to_rowmajor(R)
+            # adapter helper keeps px / R22 non-zero (controller quirk)
+            data = adapter.pose_desired(cmd)
 
             if args.dry_run:
                 node.get_logger().info(
@@ -511,8 +427,10 @@ def run_ros(args):
                 msg.data = [float(x) for x in data]
                 node.pub.publish(msg)
 
-            if seq.done:
-                node.get_logger().info(f"sequence finished: state={seq.state} err={seq.error}")
+            phase = out.next_phase
+            if out.done:
+                node.get_logger().info(
+                    f"sequence finished: state={phase} err={adapter.module.error}")
                 break
             if args.dry_run and t > args.dry_run_seconds:
                 node.get_logger().info("dry-run time limit reached.")

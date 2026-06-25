@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Insertion orchestrator node.
 
-Thin rclpy wrapper around :class:`~robo67_insertion.lib.insertion_fsm.InsertionFSM`.
+Thin rclpy wrapper around the canonical insertion seam via
+:class:`~robo67_insertion.lib.command_path_adapters.MMCCommandPathAdapter`.
 It activates the MMC Cartesian impedance controller, sets stiffness, reads
-``FrankaState`` (EE pose + external wrench), runs the FSM at ~50 Hz, applies the
-:mod:`~robo67_insertion.lib.safety` clamps to every setpoint, and streams
-``CartesianImpedanceGoal`` to the controller.
+``FrankaState`` (EE pose + external wrench), runs the intent adapter at ~50 Hz,
+applies the :mod:`~robo67_insertion.lib.safety` clamps to every setpoint, and
+streams ``CartesianImpedanceGoal`` to the controller.
 
 Run (in container, ROS + ws sourced, our package on PYTHONPATH):
     python3 -m robo67_insertion.nodes.insertion_orchestrator_node \
@@ -31,7 +32,8 @@ from multi_mode_control_msgs.srv import SetControllers, SetCartesianImpedance
 
 from robo67_insertion.config_schema import RoboConfig, load_config
 from robo67_insertion.lib import geometry, safety
-from robo67_insertion.lib.insertion_fsm import FsmParams, InsertionFSM, Sensors
+from robo67_insertion.lib.command_path_adapters import MMCCommandPathAdapter
+from robo67_insertion.lib.insertion_intent import IntentParams, IntentSensors
 from robo67_insertion.lib.wrench import BaselineEstimator
 
 
@@ -79,7 +81,7 @@ class InsertionOrchestrator(Node):
         self.fz = 0.0
         self.wrench = [0.0] * 6
         self.baseline = BaselineEstimator(alpha=0.1, initial=0.0)
-        self.fsm: InsertionFSM | None = None
+        self.adapter: MMCCommandPathAdapter | None = None
         self.state = "IDLE"
         self.prev_cmd: np.ndarray | None = None
         self.socket_xyz: np.ndarray | None = (
@@ -161,8 +163,8 @@ class InsertionOrchestrator(Node):
 
     # -- control loop ----------------------------------------------------
 
-    def _ensure_fsm(self) -> bool:
-        if self.fsm is not None:
+    def _ensure_adapter(self) -> bool:
+        if self.adapter is not None:
             return True
         if self.ee_xyz is None:
             return False
@@ -172,7 +174,7 @@ class InsertionOrchestrator(Node):
             # auto-place a virtual socket below the current EE (sim self-test)
             self.socket_xyz = self.ee_xyz + np.array([0.0, 0.0, -self.auto_below])
             self.get_logger().warn(f"auto socket_xyz = {self.socket_xyz.tolist()}")
-        params = FsmParams(
+        params = IntentParams(
             standoff_m=self.cfg.insertion.standoff_m,
             approach_tol_m=self.cfg.insertion.approach_tol_m,
             contact_fz_threshold_n=self.cfg.insertion.contact_fz_threshold_n,
@@ -182,11 +184,14 @@ class InsertionOrchestrator(Node):
             spiral_pitch_m=self.cfg.spiral.pitch_m,
             spiral_speed_mps=self.cfg.spiral.speed_mps,
             spiral_max_radius_m=self.cfg.spiral.max_radius_m,
-            down_quat=self.ee_quat,  # hold current (down-pointing) orientation
         )
-        self.fsm = InsertionFSM(self.socket_xyz, params)
+        # MMC command path: hold the current (down-pointing) orientation and let
+        # the lead-clamp below produce the carrot step from the canonical target.
+        self.adapter = MMCCommandPathAdapter(
+            self.socket_xyz, params, down_quat=self.ee_quat
+        )
         self.prev_cmd = self.ee_xyz.copy()
-        self.get_logger().info(f"FSM created; socket={self.socket_xyz.tolist()}")
+        self.get_logger().info(f"intent adapter created; socket={self.socket_xyz.tolist()}")
         return True
 
     def _tick(self):
@@ -197,7 +202,7 @@ class InsertionOrchestrator(Node):
         if now - self.latest_stamp_s > self.cfg.safety.watchdog_s:
             self.get_logger().warn("robot_state stale -> holding", throttle_duration_sec=2.0)
             return
-        if not self._ensure_fsm():
+        if not self._ensure_adapter():
             return
 
         # force abort
@@ -211,9 +216,13 @@ class InsertionOrchestrator(Node):
         if self.state in ("IDLE", "MOVE_ABOVE"):
             self.baseline.update(self.fz)
 
-        s = Sensors(ee_xyz=self.ee_xyz.copy(), fz=self.fz,
-                    fz_baseline=self.baseline.value, t=now)
-        decision = self.fsm.step(self.state, s)
+        s = IntentSensors(
+            ee_xyz=tuple(float(v) for v in self.ee_xyz),
+            fz=self.fz,
+            fz_baseline=self.baseline.value,
+            t=now,
+        )
+        cmd = self.adapter.step(self.state, s)
 
         # soften stiffness once we begin contact phase
         if self.state == "DESCEND_TO_CONTACT" and not self.contact_stiffness_set:
@@ -225,22 +234,22 @@ class InsertionOrchestrator(Node):
         # from the current pose, so anchoring the clamp to ee (not the previous
         # command) keeps every setpoint inside the accept window and the arm
         # tracks smoothly (carrot-on-a-stick).
-        safe = safety.clamp_to_workspace(decision.desired_xyz, self.cfg.safety.workspace_aabb)
+        safe = safety.clamp_to_workspace(cmd.desired_xyz, self.cfg.safety.workspace_aabb)
         safe = safety.clamp_step(self.ee_xyz, safe, self.cfg.safety.max_lead_m)
 
         if not self.dry_run:
-            self._publish(safe, decision.desired_quat)
+            self._publish(safe, cmd.desired_quat)
         self.prev_cmd = np.asarray(safe, float)
 
-        if decision.next_state != self.state:
-            self.get_logger().info(f"{self.state} -> {decision.next_state}")
-        self.state = decision.next_state
+        if cmd.next_state != self.state:
+            self.get_logger().info(f"{self.state} -> {cmd.next_state}")
+        self.state = cmd.next_state
 
-        if decision.done:
-            if decision.error:
-                self.get_logger().error(f"FSM finished with error: {decision.error}")
+        if cmd.done:
+            if cmd.error:
+                self.get_logger().error(f"insertion finished with error: {cmd.error}")
             else:
-                self.get_logger().info("FSM DONE: insertion complete")
+                self.get_logger().info("insertion DONE: complete")
             self.aborted = True  # stop commanding once finished
 
     def _publish(self, xyz, quat_xyzw):
