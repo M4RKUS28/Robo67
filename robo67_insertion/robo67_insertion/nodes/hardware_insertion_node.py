@@ -51,12 +51,14 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 import sys
 import time
 
 # numpy is required for the libs; import lazily-friendly but it is always present.
 import numpy as np
 
+from robo67_insertion.config_schema import TopicsCfg, load_config
 from robo67_insertion.lib.command_path_adapters import ImpedanceCommandPathAdapter
 from robo67_insertion.lib.contact_lifecycle import ContactLifecycleModule
 from robo67_insertion.lib.insertion_intent import PHASES, IntentParams, IntentSensors
@@ -66,6 +68,12 @@ from robo67_insertion.lib.safety_envelope import (
     SafetyEnvelopeModule,
     SafetyInput,
 )
+from robo67_insertion.lib.telemetry import (
+    InsertionTelemetry,
+    SpeedTracker,
+    diagnostic_pairs,
+)
+from robo67_insertion.lib.wrench import contact_detected
 
 
 # ---------------------------------------------------------------------------
@@ -247,6 +255,117 @@ def selftest(args):
 
 
 # ---------------------------------------------------------------------------
+# Telemetry publisher (logging). Observational only -- never commands the arm.
+# Message types are imported in __init__ so this module still imports on a host
+# with no ROS (the --selftest path must stay ROS-free).
+# ---------------------------------------------------------------------------
+
+def resolve_topics(config_path: str | None) -> TopicsCfg:
+    """Canonical telemetry/camera topic names (yaml override -> defaults)."""
+    try:
+        path = config_path or _default_config_path()
+        return load_config(path).topics
+    except Exception:
+        return TopicsCfg()
+
+
+def _default_config_path() -> str:
+    here = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return os.path.join(here, "config", "robo67.yaml")
+
+
+class TelemetryPublisher:
+    """Publishes the insertion loop's internal state on rostopics.
+
+    Created from a live ROS node; :meth:`publish` is called from the control
+    loop with an :class:`~robo67_insertion.lib.telemetry.InsertionTelemetry`
+    snapshot (the caller throttles the rate). Holds the captured tool
+    orientation ``R`` so the pose feeds carry the real (down-pointing) quaternion.
+    """
+
+    def __init__(self, node, topics: TopicsCfg, *, R=None):
+        from std_msgs.msg import Bool, Float64, Int32, String
+        from geometry_msgs.msg import PoseStamped, WrenchStamped
+        from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
+        from robo67_insertion.lib import geometry
+
+        self._node = node
+        self._geom = geometry
+        self._String, self._Float64, self._Bool, self._Int32 = String, Float64, Bool, Int32
+        self._PoseStamped, self._WrenchStamped = PoseStamped, WrenchStamped
+        self._DiagArray, self._DiagStatus, self._KeyValue = (
+            DiagnosticArray, DiagnosticStatus, KeyValue)
+        self.R = R
+
+        self.pub_phase = node.create_publisher(String, topics.insertion_phase, 10)
+        self.pub_ee = node.create_publisher(PoseStamped, topics.insertion_ee_pose, 10)
+        self.pub_speed = node.create_publisher(Float64, topics.insertion_ee_speed, 10)
+        self.pub_cmd = node.create_publisher(PoseStamped, topics.insertion_command_pose, 10)
+        self.pub_wrench = node.create_publisher(WrenchStamped, topics.insertion_wrench, 10)
+        self.pub_fz = node.create_publisher(Float64, topics.insertion_fz, 10)
+        self.pub_base = node.create_publisher(Float64, topics.insertion_fz_baseline, 10)
+        self.pub_contact = node.create_publisher(Bool, topics.insertion_contact, 10)
+        self.pub_retries = node.create_publisher(Int32, topics.insertion_retries, 10)
+        self.pub_diag = node.create_publisher(DiagnosticArray, topics.insertion_diagnostics, 10)
+
+    def _quat(self):
+        """Quaternion (x,y,z,w) of the held tool orientation, identity if unset."""
+        if self.R is None:
+            return (0.0, 0.0, 0.0, 1.0)
+        R = self.R
+        m = [float(R[0][0]), float(R[1][0]), float(R[2][0]), 0.0,
+             float(R[0][1]), float(R[1][1]), float(R[2][1]), 0.0,
+             float(R[0][2]), float(R[1][2]), float(R[2][2]), 0.0,
+             0.0, 0.0, 0.0, 1.0]
+        _, q = self._geom.mat4_colmajor_to_xyz_quat(m)
+        return tuple(float(v) for v in q)
+
+    def _pose(self, xyz, stamp, frame="panda_link0"):
+        msg = self._PoseStamped()
+        msg.header.stamp = stamp
+        msg.header.frame_id = frame
+        msg.pose.position.x = float(xyz[0])
+        msg.pose.position.y = float(xyz[1])
+        msg.pose.position.z = float(xyz[2])
+        qx, qy, qz, qw = self._quat()
+        msg.pose.orientation.x = qx
+        msg.pose.orientation.y = qy
+        msg.pose.orientation.z = qz
+        msg.pose.orientation.w = qw
+        return msg
+
+    def publish(self, tel: InsertionTelemetry) -> None:
+        node = self._node
+        stamp = node.get_clock().now().to_msg()
+        self.pub_phase.publish(self._String(data=tel.phase))
+        self.pub_ee.publish(self._pose(tel.ee_xyz, stamp))
+        self.pub_cmd.publish(self._pose(tel.cmd_xyz, stamp))
+        self.pub_speed.publish(self._Float64(data=float(tel.speed)))
+        self.pub_fz.publish(self._Float64(data=float(tel.fz)))
+        self.pub_base.publish(self._Float64(data=float(tel.fz_baseline)))
+        self.pub_contact.publish(self._Bool(data=bool(tel.contact)))
+        self.pub_retries.publish(self._Int32(data=int(tel.retries)))
+
+        w = self._WrenchStamped()
+        w.header.stamp = stamp
+        w.header.frame_id = "panda_link0"
+        w.wrench.force.x, w.wrench.force.y, w.wrench.force.z = (float(v) for v in tel.wrench6[:3])
+        w.wrench.torque.x, w.wrench.torque.y, w.wrench.torque.z = (float(v) for v in tel.wrench6[3:6])
+        self.pub_wrench.publish(w)
+
+        da = self._DiagArray()
+        da.header.stamp = stamp
+        st = self._DiagStatus()
+        st.name = "robo67/insertion"
+        st.hardware_id = "panda"
+        st.message = tel.phase
+        st.level = self._DiagStatus.ERROR if (tel.error or tel.abort) else self._DiagStatus.OK
+        st.values = [self._KeyValue(key=k, value=v) for k, v in diagnostic_pairs(tel)]
+        da.status = [st]
+        self.pub_diag.publish(da)
+
+
+# ---------------------------------------------------------------------------
 # ROS node.
 # ---------------------------------------------------------------------------
 
@@ -419,6 +538,42 @@ def run_ros(args):
     aborted = False
     t0 = time.time()
 
+    # -- telemetry (logging) ---------------------------------------------
+    # Observational publishers only; they NEVER command the arm, so they run in
+    # dry-run too (great for validating a run before motion). Throttled to
+    # --telemetry-rate independent of the control loop.
+    telemetry = None
+    if args.publish_telemetry:
+        telemetry = TelemetryPublisher(node, resolve_topics(args.config_path or None), R=node.R)
+        node.get_logger().info(
+            f"telemetry publishing @ {args.telemetry_rate} Hz on /robo67/insertion/*")
+    speed_tracker = SpeedTracker()
+    tel_period = 1.0 / max(1.0, args.telemetry_rate)
+    _last_tel = [-1e9]
+
+    def emit_tel(phase_now, cmd_xyz, ee, fz, baseline, t, *, abort=False,
+                 done=False, force=False):
+        if telemetry is None:
+            return
+        if not force and (t - _last_tel[0]) < tel_period:
+            return
+        _last_tel[0] = t
+        speed = speed_tracker.update(ee, t)
+        telemetry.publish(InsertionTelemetry(
+            t=t, phase=phase_now,
+            ee_xyz=tuple(float(v) for v in ee),
+            cmd_xyz=tuple(float(v) for v in cmd_xyz),
+            speed=speed,
+            wrench6=tuple(float(v) for v in node.wrench),
+            fz=float(fz), fz_baseline=float(baseline),
+            contact=contact_detected(float(fz), float(baseline), args.contact_fz),
+            retries=int(getattr(adapter.module, "retries", 0)),
+            socket_xyz=tuple(float(v) for v in socket),
+            contact_z=(None if adapter.module.contact_z is None
+                       else float(adapter.module.contact_z)),
+            abort=abort, done=done, error=adapter.module.error,
+        ))
+
     try:
         while rclpy.ok():
             rclpy.spin_once(node, timeout_sec=0.0)
@@ -455,9 +610,13 @@ def run_ros(args):
             ))
             if senv.abort:
                 node.get_logger().error(f"FORCE ABORT wrench={[round(w,2) for w in node.wrench]}")
+                emit_tel(st, cmd, ee, fz, outcome.baseline_fz, t, abort=True, force=True)
                 aborted = True
                 break
             cmd = np.asarray(senv.safe_xyz, float)
+
+            # logging: publish the loop's internal state (throttled)
+            emit_tel(st, cmd, ee, fz, outcome.baseline_fz, t)
 
             if st != last_state:
                 node.get_logger().info(
@@ -481,6 +640,7 @@ def run_ros(args):
             if out.done:
                 node.get_logger().info(
                     f"sequence finished: state={phase} err={adapter.module.error}")
+                emit_tel(phase, cmd, ee, fz, outcome.baseline_fz, t, done=True, force=True)
                 break
             if args.dry_run and t > args.dry_run_seconds:
                 node.get_logger().info("dry-run time limit reached.")
@@ -521,6 +681,16 @@ def build_parser():
     ap.add_argument("--state-topic", default="/franka_robot_state_broadcaster/robot_state")
     ap.add_argument("--recovery-srv",
                     default="/panda_error_recovery_service_server/error_recovery")
+
+    # logging / telemetry (observational; never commands the arm)
+    ap.add_argument("--config-path", default="",
+                    help="robo67.yaml for telemetry topic names (default: package config)")
+    ap.add_argument("--publish-telemetry", action=argparse.BooleanOptionalAction,
+                    default=True,
+                    help="publish insertion telemetry on /robo67/insertion/* "
+                         "(--no-publish-telemetry to disable)")
+    ap.add_argument("--telemetry-rate", type=float, default=20.0,
+                    help="telemetry publish rate (Hz), independent of the control loop")
 
     # socket pose
     ap.add_argument("--socket-xyz", type=float, nargs=3, default=None,

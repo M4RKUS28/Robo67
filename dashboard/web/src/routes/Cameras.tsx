@@ -21,6 +21,7 @@ export function Cameras() {
           available={!!latest}
           detection={c920}
           accent="#38bdf8"
+          overlayCamId={cam?.c920?.overlay}
         />
         <CameraPanel
           camId="d405"
@@ -29,6 +30,7 @@ export function Cameras() {
           available={!!latest}
           detection={d405}
           accent="#a78bfa"
+          overlayCamId={cam?.d405?.overlay}
         />
       </div>
 

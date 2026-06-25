@@ -1,30 +1,37 @@
-"""Live ROS + camera provider for the insertion dashboard.
+"""Live ROS provider for the insertion dashboard (topic-sourced).
 
 Runs INSIDE ``multipanda-container`` (ROS sourced, domain 1). It is a passive
-observer -- it never commands the arm. It subscribes to:
+observer -- it never commands the arm, and (unlike before) it never opens a
+camera device. Everything is read from rostopics so the dashboard is just one
+more subscriber on the logging graph (no device contention with the detector):
 
-* ``/franka_robot_state_broadcaster/robot_state`` (franka_msgs/FrankaState)
-      EE pose (``o_t_ee``), external wrench (``o_f_ext_hat_k``), ``robot_mode``.
-      EE speed is derived from successive pose samples.
-* ``/robo67/socket_detection``  (std_msgs/Float64MultiArray = [u,v,r,score])  -> C920 hole
-* ``/robo67/socket_pose``       (geometry_msgs/PoseStamped)                   -> socket base XY/Z
-* ``/robo67/servo_correction``  (std_msgs/Float64MultiArray = [dx,dy])        -> D405 servo vector
-* ``/robo67/insertion_phase``   (std_msgs/String, OPTIONAL)                   -> FSM phase
-      Publish this from the orchestrator (``--publish-phase``) to see the real
-      decisions; without it the phase shows UNKNOWN and we fall back to
-      ``robot_mode`` for the high-level state.
+Cameras (sensor_msgs/CompressedImage, "jpeg") -- published by camera_publisher
+and the detector overlay feeds:
+* ``topics.cam_overhead_raw``     -> dashboard feed ``c920``
+* ``topics.cam_overhead_overlay`` -> dashboard feed ``c920_overlay``
+* ``topics.cam_gripper_raw``      -> dashboard feed ``d405``
+* ``topics.cam_gripper_overlay``  -> dashboard feed ``d405_overlay``
 
-Cameras are grabbed via GStreamer subprocesses (the proven path on these
-cameras) into a latest-frame cache and streamed as MJPEG.
+Robot state (always-on):
+* ``topics.robot_state`` (franka_msgs/FrankaState) -> EE pose, wrench, robot_mode;
+  EE speed is derived from successive poses.
+
+Insertion telemetry (published by hardware_insertion_node during a run):
+* ``topics.insertion_phase``         (std_msgs/String)   -> FSM phase
+* ``topics.insertion_command_pose``  (geometry_msgs/PoseStamped) -> commanded equilibrium
+* ``topics.insertion_fz_baseline``   (std_msgs/Float64)  -> free-space Fz baseline
+* ``topics.insertion_contact``       (std_msgs/Bool)     -> contact detected
+* ``topics.insertion_retries``       (std_msgs/Int32)    -> retry count
+
+Detections (markers for the client-side overlay on the raw feed):
+* ``topics.socket_detection`` ([u,v,r,score]) + ``topics.socket_pose`` (base XY/Z)
+* ``topics.servo_correction`` ([dx,dy])  -> D405 servo vector
 
 ``rclpy`` is imported lazily in :meth:`start`, so this module imports fine on a
 host without ROS (the server only instantiates it when ``--mode live``).
 """
 from __future__ import annotations
 
-import os
-import subprocess
-import tempfile
 import threading
 import time
 from typing import Dict, List, Optional
@@ -42,29 +49,14 @@ from common import (
 ensure_insertion_on_path()
 
 
-def grab_jpeg_gst(device: int, width: int = 1280, height: int = 720,
-                  timeout_s: float = 6.0) -> Optional[bytes]:
-    """Grab one JPEG frame from /dev/video<device> via GStreamer; return bytes."""
-    tmp = tempfile.NamedTemporaryFile(suffix=".jpg", delete=False)
-    tmp.close()
-    pipeline = (
-        f"gst-launch-1.0 -q v4l2src device=/dev/video{device} num-buffers=1 "
-        f"! image/jpeg,width={width},height={height} ! filesink location={tmp.name}"
-    )
-    data = None
-    try:
-        subprocess.run(pipeline, shell=True, timeout=timeout_s,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-        with open(tmp.name, "rb") as fh:
-            data = fh.read() or None
-    except Exception:
-        data = None
-    finally:
-        try:
-            os.unlink(tmp.name)
-        except OSError:
-            pass
-    return data
+# dashboard camera feed name -> (config topic attribute, fallback topic name).
+# The fallback is used only when robo67.yaml/config_schema is unavailable.
+CAM_FEEDS = {
+    "c920": ("cam_overhead_raw", "/robo67/camera/overhead/image_raw/compressed"),
+    "c920_overlay": ("cam_overhead_overlay", "/robo67/camera/overhead/overlay/compressed"),
+    "d405": ("cam_gripper_raw", "/robo67/camera/gripper/image_raw/compressed"),
+    "d405_overlay": ("cam_gripper_overlay", "/robo67/camera/gripper/overlay/compressed"),
+}
 
 
 def _o_t_ee_xyz(o_t_ee) -> np.ndarray:
@@ -76,23 +68,20 @@ class LiveProvider:
     name = "live"
 
     def __init__(self, *, c920_device: Optional[int] = None,
-                 d405_device: Optional[int] = None, cam_fps: float = 3.0) -> None:
+                 d405_device: Optional[int] = None, cam_fps: float = 8.0) -> None:
         self.hub = Hub()
         self._stop = threading.Event()
         self._t0 = now()
 
-        # config (device numbers + thresholds) from robo67.yaml when available
+        # config: topic names + thresholds from robo67.yaml when available.
+        # (c920_device / d405_device are accepted for CLI compatibility but no
+        # longer used -- the dashboard subscribes to camera topics now.)
         self._cfg = self._load_cfg()
-        self._dev = {
-            "c920": c920_device if c920_device is not None
-            else int(getattr(self._cfg.camera, "c920_device", 8)),
-            "d405": d405_device if d405_device is not None
-            else int(getattr(self._cfg.camera, "d405_color_device", 6)),
-        }
-        self._cam_size = {"c920": (1280, 720), "d405": (1280, 720)}
+        self._topics = getattr(self._cfg, "topics", None)
         self._cam_fps = cam_fps
-        self._cam_frame: Dict[str, Optional[bytes]] = {"c920": None, "d405": None}
-        self._cam_threads: List[threading.Thread] = []
+        self._cam_size = {"c920": (1280, 720), "c920_overlay": (1280, 720),
+                          "d405": (1280, 720), "d405_overlay": (1280, 720)}
+        self._cam_jpeg: Dict[str, Optional[bytes]] = {n: None for n in CAM_FEEDS}
 
         # ROS-fed state
         self._lock = threading.Lock()
@@ -104,12 +93,18 @@ class LiveProvider:
         self._robot_mode = 0
         self._phase = "UNKNOWN"
         self._prev_phase = "UNKNOWN"
+        self._cmd = None
+        self._fz_baseline = 0.0
+        self._contact = False
+        self._retries = 0
         self._socket = None
         self._c920_det = None
         self._servo = None
         self._node = None
 
     def _load_cfg(self):
+        import os
+
         try:
             from robo67_insertion.config_schema import RoboConfig, load_config
 
@@ -118,11 +113,11 @@ class LiveProvider:
                 "robo67_insertion", "config", "robo67.yaml")
             return load_config(path) if os.path.exists(path) else RoboConfig()
         except Exception:
-            class _Empty:
-                class camera:
-                    c920_device = 8
-                    d405_color_device = 6
-            return _Empty()
+            return None
+
+    def _t(self, attr: str, default: str) -> str:
+        """Topic name from config (yaml override) with a hard-coded fallback."""
+        return getattr(self._topics, attr, default) if self._topics else default
 
     # -- lifecycle -------------------------------------------------------
 
@@ -130,7 +125,8 @@ class LiveProvider:
         import rclpy
         from rclpy.node import Node
         from geometry_msgs.msg import PoseStamped
-        from std_msgs.msg import Float64MultiArray, String
+        from sensor_msgs.msg import CompressedImage
+        from std_msgs.msg import Bool, Float64, Float64MultiArray, Int32, String
         from franka_msgs.msg import FrankaState
 
         prov = self
@@ -138,17 +134,42 @@ class LiveProvider:
         class _Obs(Node):
             def __init__(self):
                 super().__init__("robo67_dashboard_observer")
-                self.create_subscription(FrankaState,
-                                         "/franka_robot_state_broadcaster/robot_state",
-                                         self._on_state, 10)
-                self.create_subscription(Float64MultiArray, "/robo67/socket_detection",
-                                         self._on_det, 10)
-                self.create_subscription(PoseStamped, "/robo67/socket_pose",
-                                         self._on_socket, 10)
-                self.create_subscription(Float64MultiArray, "/robo67/servo_correction",
-                                         self._on_servo, 10)
-                self.create_subscription(String, "/robo67/insertion_phase",
-                                         self._on_phase, 10)
+                # robot state (always-on)
+                self.create_subscription(
+                    FrankaState, prov._t("robot_state", "/franka_robot_state_broadcaster/robot_state"),
+                    self._on_state, 10)
+                # detections (client-side overlay markers)
+                self.create_subscription(
+                    Float64MultiArray, prov._t("socket_detection", "/robo67/socket_detection"),
+                    self._on_det, 10)
+                self.create_subscription(
+                    PoseStamped, prov._t("socket_pose", "/robo67/socket_pose"),
+                    self._on_socket, 10)
+                self.create_subscription(
+                    Float64MultiArray, prov._t("servo_correction", "/robo67/servo_correction"),
+                    self._on_servo, 10)
+                # insertion telemetry
+                self.create_subscription(
+                    String, prov._t("insertion_phase", "/robo67/insertion/phase"),
+                    self._on_phase, 10)
+                self.create_subscription(
+                    PoseStamped, prov._t("insertion_command_pose", "/robo67/insertion/command_pose"),
+                    self._on_cmd, 10)
+                self.create_subscription(
+                    Float64, prov._t("insertion_fz_baseline", "/robo67/insertion/fz_baseline"),
+                    self._on_baseline, 10)
+                self.create_subscription(
+                    Bool, prov._t("insertion_contact", "/robo67/insertion/contact"),
+                    self._on_contact, 10)
+                self.create_subscription(
+                    Int32, prov._t("insertion_retries", "/robo67/insertion/retries"),
+                    self._on_retries, 10)
+                # camera feeds (raw + overlay)
+                for feed, (attr, default) in CAM_FEEDS.items():
+                    topic = prov._t(attr, default)
+                    self.create_subscription(
+                        CompressedImage, topic,
+                        lambda msg, f=feed: prov._on_image(f, msg), 5)
                 self.create_timer(1.0 / 30.0, self._publish)
 
             def _on_state(self, msg):
@@ -185,6 +206,26 @@ class LiveProvider:
                 with prov._lock:
                     prov._phase = str(msg.data).strip().upper() or "UNKNOWN"
 
+            def _on_cmd(self, msg):
+                with prov._lock:
+                    prov._cmd = [msg.pose.position.x, msg.pose.position.y,
+                                 msg.pose.position.z]
+
+            def _on_baseline(self, msg):
+                with prov._lock:
+                    prov._fz_baseline = float(msg.data)
+
+            def _on_contact(self, msg):
+                with prov._lock:
+                    prov._contact = bool(msg.data)
+
+            def _on_retries(self, msg):
+                with prov._lock:
+                    prov._retries = int(msg.data)
+
+            def _on_image(self, feed, msg):
+                prov._cam_jpeg[feed] = bytes(msg.data)
+
             def _publish(self):
                 prov.hub.publish(prov._snapshot())
 
@@ -198,12 +239,6 @@ class LiveProvider:
                 pass
 
         threading.Thread(target=_spin, name="ros-spin", daemon=True).start()
-
-        for cam in ("c920", "d405"):
-            th = threading.Thread(target=self._cam_loop, args=(cam,),
-                                  name=f"grab-{cam}", daemon=True)
-            th.start()
-            self._cam_threads.append(th)
 
     def stop(self) -> None:
         self._stop.set()
@@ -224,18 +259,18 @@ class LiveProvider:
             return {
                 "mode": self.name,
                 "ros": self._ee is not None,
-                "cameras": {n: (self._cam_frame[n] is not None) for n in self._cam_frame},
+                "cameras": {n: (self._cam_jpeg[n] is not None) for n in self._cam_jpeg},
                 "phase_topic": self._phase != "UNKNOWN",
-                "devices": dict(self._dev),
+                "telemetry": self._cmd is not None,
             }
 
     def config(self) -> dict:
         from common import PHASE_ORDER
 
         ct = float(getattr(self._cfg.insertion, "contact_fz_threshold_n", 5.0)) \
-            if hasattr(self._cfg, "insertion") else 5.0
+            if getattr(self._cfg, "insertion", None) else 5.0
         fa = float(getattr(self._cfg.safety, "fz_abort_n", 25.0)) \
-            if hasattr(self._cfg, "safety") else 25.0
+            if getattr(self._cfg, "safety", None) else 25.0
         return {
             "mode": self.name,
             "phases": [{"id": p, "label": PHASE_LABEL[p]} for p in PHASE_ORDER],
@@ -244,36 +279,27 @@ class LiveProvider:
                            "speed_cap_mps": 0.05, "insert_depth_m": 0.04},
             "cameras": {
                 "c920": {"label": "C920 overhead", "size": self._cam_size["c920"],
-                          "kind": "static-overhead"},
+                          "kind": "static-overhead", "overlay": "c920_overlay"},
                 "d405": {"label": "D405 eye-in-hand", "size": self._cam_size["d405"],
-                          "kind": "eye-in-hand"},
+                          "kind": "eye-in-hand", "overlay": "d405_overlay"},
             },
         }
 
     def latest(self) -> Optional[dict]:
         return self.hub.latest()
 
-    # -- cameras ---------------------------------------------------------
-
-    def _cam_loop(self, name: str) -> None:
-        period = 1.0 / max(0.5, self._cam_fps)
-        dev = self._dev[name]
-        while not self._stop.is_set():
-            frame = grab_jpeg_gst(dev)
-            if frame is not None:
-                self._cam_frame[name] = frame
-            time.sleep(period)
+    # -- cameras (topic-sourced) ----------------------------------------
 
     def camera_names(self) -> List[str]:
-        return ["c920", "d405"]
+        return list(CAM_FEEDS.keys())
 
     def camera_jpeg(self, name: str) -> Optional[bytes]:
-        return self._cam_frame.get(name)
+        return self._cam_jpeg.get(name)
 
     def camera_iter(self, name: str, fps: float = 8.0):
         period = 1.0 / max(1.0, fps)
         while not self._stop.is_set():
-            frame = self._cam_frame.get(name)
+            frame = self._cam_jpeg.get(name)
             if frame is not None:
                 yield frame
             time.sleep(period)
@@ -283,15 +309,24 @@ class LiveProvider:
     def _snapshot(self) -> dict:
         with self._lock:
             ee = self._ee
+            cmd = self._cmd
             wrench = list(self._wrench)
             speed = self._speed
             robot_mode = self._robot_mode
             phase = self._phase
+            fz_baseline = self._fz_baseline
+            contact = self._contact
+            retries = self._retries
             socket = self._socket
             c920_det = self._c920_det
             servo = self._servo
             prev_phase = self._prev_phase
             self._prev_phase = phase
+
+        ct = float(getattr(self._cfg.insertion, "contact_fz_threshold_n", 5.0)) \
+            if getattr(self._cfg, "insertion", None) else 5.0
+        fa = float(getattr(self._cfg.safety, "fz_abort_n", 25.0)) \
+            if getattr(self._cfg, "safety", None) else 25.0
 
         t = now() - self._t0
         fx, fy, fz = (wrench + [0, 0, 0])[:3]
@@ -325,7 +360,8 @@ class LiveProvider:
             "robot_mode_label": ROBOT_MODE_LABEL.get(robot_mode, "?"),
             "ee": ({"x": float(ee[0]), "y": float(ee[1]), "z": float(ee[2])}
                    if ee is not None else None),
-            "cmd": None,
+            "cmd": ({"x": float(cmd[0]), "y": float(cmd[1]), "z": float(cmd[2])}
+                    if cmd is not None else None),
             "socket": ({"x": socket[0], "y": socket[1], "z": socket[2]} if socket else None),
             "speed": round(speed, 5),
             "speed_cap": 0.05,
@@ -334,10 +370,10 @@ class LiveProvider:
                        "ty": round(wrench[4], 3) if len(wrench) > 4 else 0.0,
                        "tz": round(wrench[5], 3) if len(wrench) > 5 else 0.0},
             "force_mag": round(force_mag, 3),
-            "fz": round(fz, 3), "fz_baseline": 0.0,
-            "contact_threshold_n": 5.0, "f_abort_n": 25.0,
-            "contact": False, "retries": 0,
-            "abort": robot_mode == 4, "done": phase == "DONE",
+            "fz": round(fz, 3), "fz_baseline": round(fz_baseline, 3),
+            "contact_threshold_n": ct, "f_abort_n": fa,
+            "contact": bool(contact), "retries": int(retries),
+            "abort": robot_mode == 4 or phase == "ERROR", "done": phase == "DONE",
             "error": None,
             "detections": {"c920": c920, "d405": d405},
             "events": events,

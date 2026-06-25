@@ -7,27 +7,43 @@ import { fmt } from "../lib/format";
 type Det = C920Detection | D405Detection;
 
 interface Props {
-  camId: "c920" | "d405";
+  camId: string;
   label: string;
   kind: string;
   available: boolean;
   detection: Det | undefined;
   accent?: string;
+  /** Server-rendered overlay feed id (e.g. "c920_overlay"); enables the toggle. */
+  overlayCamId?: string;
 }
 
 function isD405(d: Det | undefined): d is D405Detection {
   return !!d && "servo_dx" in d;
 }
 
-export function CameraPanel({ camId, label, kind, available, detection, accent = "#38bdf8" }: Props) {
+export function CameraPanel({
+  camId,
+  label,
+  kind,
+  available,
+  detection,
+  accent = "#38bdf8",
+  overlayCamId,
+}: Props) {
   // bump the MJPEG <img> src on (re)mount so the stream restarts cleanly
   const [nonce] = useState(() => Date.now());
   const [imgOk, setImgOk] = useState(true);
+  // "raw" = camera_publisher feed + client SVG overlay; "processed" = the
+  // ROS-rendered overlay feed (detection burned in by the detector node).
+  const [view, setView] = useState<"raw" | "processed">("raw");
   const imgRef = useRef<HTMLImageElement>(null);
+
+  const streamId = view === "processed" && overlayCamId ? overlayCamId : camId;
+  const showClientOverlay = view === "raw";
 
   useEffect(() => {
     setImgOk(true);
-  }, [available]);
+  }, [available, streamId]);
 
   const det = detection;
   const present = !!det?.present;
@@ -54,24 +70,45 @@ export function CameraPanel({ camId, label, kind, available, detection, accent =
           <span className="text-sm font-semibold text-slate-100">{label}</span>
           <span className="label">{kind}</span>
         </div>
-        <span
-          className={clsx(
-            "chip",
-            present
-              ? "bg-emerald-500/15 text-emerald-300"
-              : "bg-ink-700 text-slate-400",
+        <div className="flex items-center gap-2">
+          {overlayCamId && (
+            <div className="flex overflow-hidden rounded border border-ink-700 text-[10px]">
+              {(["raw", "processed"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setView(m)}
+                  className={clsx(
+                    "px-2 py-0.5 font-medium uppercase tracking-wide",
+                    view === m
+                      ? "bg-slate-200 text-ink-900"
+                      : "bg-ink-800 text-slate-400 hover:text-slate-200",
+                  )}
+                >
+                  {m}
+                </button>
+              ))}
+            </div>
           )}
-        >
-          <Crosshair size={12} />
-          {present ? "hole locked" : "no detection"}
-        </span>
+          <span
+            className={clsx(
+              "chip",
+              present
+                ? "bg-emerald-500/15 text-emerald-300"
+                : "bg-ink-700 text-slate-400",
+            )}
+          >
+            <Crosshair size={12} />
+            {present ? "hole locked" : "no detection"}
+          </span>
+        </div>
       </div>
 
       <div className="relative aspect-video w-full bg-black">
         {available && imgOk ? (
           <img
             ref={imgRef}
-            src={`/api/cam/${camId}?n=${nonce}`}
+            src={`/api/cam/${streamId}?n=${nonce}`}
             alt={`${label} feed`}
             className="absolute inset-0 h-full w-full object-contain"
             onError={() => setImgOk(false)}
@@ -84,8 +121,9 @@ export function CameraPanel({ camId, label, kind, available, detection, accent =
         )}
 
         {/* Detection overlay — viewBox matches the source frame so pixel
-            coords map 1:1 under object-contain (xMidYMid meet). */}
-        {present && (
+            coords map 1:1 under object-contain (xMidYMid meet). Skipped on the
+            "processed" feed, where the detector already burned the overlay in. */}
+        {present && showClientOverlay && (
           <svg
             className="pointer-events-none absolute inset-0 h-full w-full"
             viewBox={`0 0 ${w} ${h}`}
