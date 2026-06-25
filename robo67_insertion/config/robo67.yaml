@@ -1,0 +1,54 @@
+# Robo67 peg-in-hole configuration. See robo67_insertion/config_schema.py for the schema.
+# Values are the design defaults; tune workspace_aabb + contact params in Phase 3/5.
+
+stiffness:
+  free_translational: 400.0
+  free_rotational: 20.0
+  contact_translational_xy: 150.0
+  contact_z: 400.0
+  contact_rotational: 20.0
+  damping_ratio: 0.8
+  nullspace_stiffness: 10.0
+
+spiral:
+  max_radius_m: 0.012
+  pitch_m: 0.002
+  speed_mps: 0.005
+  pts_per_rev: 36
+
+safety:
+  workspace_aabb: [[0.25, 0.65], [-0.30, 0.30], [0.02, 0.60]]
+  max_step_m: 0.002
+  fz_abort_n: 25.0
+  watchdog_s: 0.2
+
+insertion:
+  standoff_m: 0.05
+  approach_tol_m: 0.003
+  contact_fz_threshold_n: 5.0
+  insert_depth_m: 0.04
+  z_drop_threshold_m: 0.004
+  retry_limit: 3
+  control_rate_hz: 50.0
+
+topics:
+  controller_name: panda_cartesian_impedance_controller
+  arm_resource: panda
+  desired_pose: /panda/panda_cartesian_impedance_controller/desired_pose
+  parameters: /panda/panda_cartesian_impedance_controller/parameters
+  set_controllers: /set_controllers
+  robot_state: /franka_robot_state_broadcaster/panda/robot_state
+  error_recovery: /panda_error_recovery_service_server/error_recovery
+  socket_pose: /robo67/socket_pose
+  socket_detection: /robo67/socket_detection
+
+camera:
+  c920_device: 8
+  d405_color_device: 6
+  d405_depth_device: 2
+  c920_fx: 1000.0
+  c920_fy: 1000.0
+  d405_fx: 430.0
+  d405_fy: 430.0
+
+socket_cube_height_m: 0.06

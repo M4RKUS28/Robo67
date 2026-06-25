@@ -1,0 +1,116 @@
+"""Typed configuration for the Robo67 insertion stack.
+
+Pure Python (no rclpy). Mirrors ``config/robo67.yaml``. Nodes load a
+:class:`RoboConfig` once at startup; the pure-logic libs receive only the
+sub-config dataclasses they need, which keeps them trivially unit-testable.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import List
+
+import yaml
+
+
+@dataclass
+class StiffnessCfg:
+    free_translational: float = 400.0      # N/m, free-space moves
+    free_rotational: float = 20.0          # Nm/rad
+    contact_translational_xy: float = 150.0  # softened in XY near contact
+    contact_z: float = 400.0               # keep Z firm to push down
+    contact_rotational: float = 20.0
+    damping_ratio: float = 0.8
+    nullspace_stiffness: float = 10.0
+
+
+@dataclass
+class SpiralCfg:
+    max_radius_m: float = 0.012
+    pitch_m: float = 0.002
+    speed_mps: float = 0.005
+    pts_per_rev: int = 36
+
+
+@dataclass
+class SafetyCfg:
+    # [[xmin,xmax],[ymin,ymax],[zmin,zmax]] in base frame; filled from sim in Phase 3.
+    workspace_aabb: List[List[float]] = field(
+        default_factory=lambda: [[0.25, 0.65], [-0.30, 0.30], [0.02, 0.60]]
+    )
+    max_step_m: float = 0.002        # per control cycle => velocity cap
+    fz_abort_n: float = 25.0         # abort if |external force| exceeds this
+    watchdog_s: float = 0.2          # hold if robot state older than this
+
+
+@dataclass
+class InsertionCfg:
+    standoff_m: float = 0.05         # height above socket top for MOVE_ABOVE
+    approach_tol_m: float = 0.003    # "arrived" tolerance
+    contact_fz_threshold_n: float = 5.0
+    insert_depth_m: float = 0.04
+    z_drop_threshold_m: float = 0.004  # EE drop that signals peg entered hole
+    retry_limit: int = 3
+    control_rate_hz: float = 50.0
+
+
+@dataclass
+class TopicsCfg:
+    controller_name: str = "panda_cartesian_impedance_controller"
+    arm_resource: str = "panda"
+    desired_pose: str = "/panda/panda_cartesian_impedance_controller/desired_pose"
+    parameters: str = "/panda/panda_cartesian_impedance_controller/parameters"
+    set_controllers: str = "/set_controllers"
+    # Confirm exact name in Phase 0; fallback "/franka_robot_state_broadcaster/robot_state".
+    robot_state: str = "/franka_robot_state_broadcaster/panda/robot_state"
+    error_recovery: str = "/panda_error_recovery_service_server/error_recovery"
+    socket_pose: str = "/robo67/socket_pose"
+    socket_detection: str = "/robo67/socket_detection"
+
+
+@dataclass
+class CameraCfg:
+    c920_device: int = 8             # /dev/video8
+    d405_color_device: int = 6       # /dev/video6
+    d405_depth_device: int = 2       # /dev/video2 (Z16)
+    c920_fx: float = 1000.0          # placeholder until intrinsics calibrated
+    c920_fy: float = 1000.0
+    d405_fx: float = 430.0
+    d405_fy: float = 430.0
+
+
+@dataclass
+class RoboConfig:
+    stiffness: StiffnessCfg = field(default_factory=StiffnessCfg)
+    spiral: SpiralCfg = field(default_factory=SpiralCfg)
+    safety: SafetyCfg = field(default_factory=SafetyCfg)
+    insertion: InsertionCfg = field(default_factory=InsertionCfg)
+    topics: TopicsCfg = field(default_factory=TopicsCfg)
+    camera: CameraCfg = field(default_factory=CameraCfg)
+    socket_cube_height_m: float = 0.06   # measured in Phase 0
+
+
+def _merge(dc, data: dict):
+    """Return a dataclass of the same type as ``dc`` with ``data`` overlaid."""
+    if not data:
+        return dc
+    kwargs = {}
+    for f in dc.__dataclass_fields__:  # type: ignore[attr-defined]
+        kwargs[f] = data.get(f, getattr(dc, f))
+    return type(dc)(**kwargs)
+
+
+def load_config(path: str) -> RoboConfig:
+    """Load ``robo67.yaml`` into a :class:`RoboConfig` (missing keys -> defaults)."""
+    with open(path, "r") as fh:
+        raw = yaml.safe_load(fh) or {}
+    cfg = RoboConfig()
+    cfg.stiffness = _merge(cfg.stiffness, raw.get("stiffness", {}))
+    cfg.spiral = _merge(cfg.spiral, raw.get("spiral", {}))
+    cfg.safety = _merge(cfg.safety, raw.get("safety", {}))
+    cfg.insertion = _merge(cfg.insertion, raw.get("insertion", {}))
+    cfg.topics = _merge(cfg.topics, raw.get("topics", {}))
+    cfg.camera = _merge(cfg.camera, raw.get("camera", {}))
+    if "socket_cube_height_m" in raw:
+        cfg.socket_cube_height_m = raw["socket_cube_height_m"]
+    return cfg
