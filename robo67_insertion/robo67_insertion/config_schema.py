@@ -38,7 +38,11 @@ class SafetyCfg:
     workspace_aabb: List[List[float]] = field(
         default_factory=lambda: [[0.25, 0.65], [-0.30, 0.30], [0.02, 0.60]]
     )
-    max_step_m: float = 0.002        # per control cycle => velocity cap
+    # Max lead of the commanded equilibrium ahead of the ACTUAL EE pose. The MMC
+    # cartesian impedance controller DISCARDS any desired pose > 0.1 m from the
+    # current pose, so this MUST stay < 0.1. It is also the per-command velocity
+    # bound (the carrot never gets farther than this from the arm).
+    max_lead_m: float = 0.05
     fz_abort_n: float = 25.0         # abort if |external force| exceeds this
     watchdog_s: float = 0.2          # hold if robot state older than this
 

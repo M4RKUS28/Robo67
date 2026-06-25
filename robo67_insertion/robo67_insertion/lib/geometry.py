@@ -1,12 +1,12 @@
 """Pure-Python geometry helpers for pixel <-> robot-base mapping and pose math.
 
 This module is intentionally free of any ROS / rclpy dependency so it can be
-unit-tested in isolation. It depends only on numpy and OpenCV (cv2).
+unit-tested in isolation. Only :func:`fit_homography` needs OpenCV (imported
+lazily), so the control loop can use the pose math without cv2 installed.
 """
 
 from __future__ import annotations
 
-import cv2
 import numpy as np
 
 
@@ -26,6 +26,8 @@ def fit_homography(pixels: np.ndarray, base_xy: np.ndarray) -> np.ndarray:
         A ``3x3`` homography ``H`` such that
         ``pixel_to_base(H, pixels) ~= base_xy``.
     """
+    import cv2  # lazy: only the vision/calibration path needs OpenCV
+
     src = np.asarray(pixels, dtype=float)
     dst = np.asarray(base_xy, dtype=float)
     # method=0 -> least-squares (planar, no outlier rejection).

@@ -1,0 +1,968 @@
+[    1856ms] [WARNING] WebSocket connection to 'wss://192.168.1.67/desk/api/navigation/events' failed: WebSocket is closed before the connection is established. @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[    1872ms] [ERROR] Websocket /desk/api/navigation/events Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[    1872ms] [INFO] Websocket wss://192.168.1.67/desk/api/navigation/events closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72253ms] [INFO] Websocket wss://192.168.1.67/desk/api/base-leds/hardware closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72253ms] [INFO] Websocket wss://192.168.1.67/desk/api/pilot/hardware closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72253ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/guiding/mode closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72253ms] [INFO] Websocket wss://192.168.1.67/admin/api/end-effector closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72253ms] [INFO] Websocket wss://192.168.1.67/desk/api/timelines/0_goon closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72253ms] [INFO] Websocket wss://192.168.1.67/desk/api/system/status closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/desk/api/navigation/events closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/guiding/configuration closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/status closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/admin/api/startup-phase closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/desk/api/groups closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/desk/api/navigation/mode closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/desk/api/execution closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/desk/api/timelines closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/desk/api/skills closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/desk/api/execution closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [WARNING] Websocket was closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/desk/api/notification closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/admin/api/control-token closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [WARNING] Websocket was closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/gripper_state closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/configuration closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72254ms] [INFO] Websocket wss://192.168.1.67/admin/api/processes closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   72255ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   72255ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72255ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72255ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72255ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   72256ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73256ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/base-leds/hardware @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/pilot/hardware @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/guiding/mode @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/admin/api/end-effector @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/timelines/0_goon @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/system/status @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/navigation/events @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/guiding/configuration @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/status @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/admin/api/startup-phase @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/groups @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/navigation/mode @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/execution @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/timelines @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/skills @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/execution @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/notification @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73257ms] [WARNING] Reconnecting websocket wss://192.168.1.67/admin/api/control-token @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73258ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/gripper_state @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73258ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/configuration @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73258ms] [WARNING] Reconnecting websocket wss://192.168.1.67/admin/api/processes @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73258ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/base-leds/hardware' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73258ms] [ERROR] Websocket /desk/api/base-leds/hardware Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73258ms] [INFO] Websocket wss://192.168.1.67/desk/api/base-leds/hardware closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73259ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73259ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73269ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/pilot/hardware' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73269ms] [ERROR] Websocket /desk/api/pilot/hardware Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73269ms] [INFO] Websocket wss://192.168.1.67/desk/api/pilot/hardware closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73270ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73270ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73280ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/robot/guiding/mode' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73280ms] [ERROR] Websocket /desk/api/robot/guiding/mode Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73280ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/guiding/mode closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73281ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73281ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73291ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/timelines/0_goon' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73291ms] [ERROR] Websocket /desk/api/timelines/0_goon Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73291ms] [INFO] Websocket wss://192.168.1.67/desk/api/timelines/0_goon closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73292ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73292ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73302ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/admin/api/end-effector' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73302ms] [ERROR] Websocket /admin/api/end-effector Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73302ms] [INFO] Websocket wss://192.168.1.67/admin/api/end-effector closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73303ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73303ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73313ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/system/status' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73313ms] [ERROR] Websocket /desk/api/system/status Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73313ms] [INFO] Websocket wss://192.168.1.67/desk/api/system/status closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73314ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73314ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73324ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/navigation/events' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73324ms] [ERROR] Websocket /desk/api/navigation/events Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73324ms] [INFO] Websocket wss://192.168.1.67/desk/api/navigation/events closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73325ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73325ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73336ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/robot/guiding/configuration' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73336ms] [ERROR] Websocket /desk/api/robot/guiding/configuration Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73336ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/guiding/configuration closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73336ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73336ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73347ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/robot/status' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73347ms] [ERROR] Websocket /desk/api/robot/status Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73347ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/status closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73347ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73347ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73358ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/admin/api/startup-phase' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73358ms] [ERROR] Websocket /admin/api/startup-phase Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73358ms] [INFO] Websocket wss://192.168.1.67/admin/api/startup-phase closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73359ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73359ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73368ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/groups' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73368ms] [ERROR] Websocket /desk/api/groups Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73368ms] [INFO] Websocket wss://192.168.1.67/desk/api/groups closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73369ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73369ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73496ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/navigation/mode' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73497ms] [ERROR] Websocket /desk/api/navigation/mode Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73497ms] [INFO] Websocket wss://192.168.1.67/desk/api/navigation/mode closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73498ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73498ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73634ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/skills' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73634ms] [ERROR] Websocket /desk/api/skills Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73635ms] [INFO] Websocket wss://192.168.1.67/desk/api/skills closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73636ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73636ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73742ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/execution' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73742ms] [ERROR] Websocket /desk/api/execution Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73743ms] [INFO] Websocket wss://192.168.1.67/desk/api/execution closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73744ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73744ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   73837ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/timelines' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73837ms] [ERROR] Websocket /desk/api/timelines Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73837ms] [INFO] Websocket wss://192.168.1.67/desk/api/timelines closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   73838ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   73838ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74259ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/base-leds/hardware @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74266ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/base-leds/hardware' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74266ms] [ERROR] Websocket /desk/api/base-leds/hardware Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74266ms] [INFO] Websocket wss://192.168.1.67/desk/api/base-leds/hardware closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74267ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74267ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74270ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/pilot/hardware @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74278ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/pilot/hardware' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74278ms] [ERROR] Websocket /desk/api/pilot/hardware Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74278ms] [INFO] Websocket wss://192.168.1.67/desk/api/pilot/hardware closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74279ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74279ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74282ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/guiding/mode @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74288ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/robot/guiding/mode' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74288ms] [ERROR] Websocket /desk/api/robot/guiding/mode Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74289ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/guiding/mode closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74289ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74289ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74292ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/timelines/0_goon @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74302ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/timelines/0_goon' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74302ms] [ERROR] Websocket /desk/api/timelines/0_goon Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74302ms] [INFO] Websocket wss://192.168.1.67/desk/api/timelines/0_goon closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74302ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74302ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74303ms] [WARNING] Reconnecting websocket wss://192.168.1.67/admin/api/end-effector @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74313ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/admin/api/end-effector' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74313ms] [ERROR] Websocket /admin/api/end-effector Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74313ms] [INFO] Websocket wss://192.168.1.67/admin/api/end-effector closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74314ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74314ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74314ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/system/status @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74324ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/system/status' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74324ms] [ERROR] Websocket /desk/api/system/status Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74324ms] [INFO] Websocket wss://192.168.1.67/desk/api/system/status closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74325ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74325ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74325ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/navigation/events @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74335ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/navigation/events' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74335ms] [ERROR] Websocket /desk/api/navigation/events Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74335ms] [INFO] Websocket wss://192.168.1.67/desk/api/navigation/events closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74336ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74336ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74337ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/guiding/configuration @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74348ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/status @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74354ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/robot/guiding/configuration' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74354ms] [ERROR] Websocket /desk/api/robot/guiding/configuration Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74354ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/guiding/configuration closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74355ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74355ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74359ms] [WARNING] Reconnecting websocket wss://192.168.1.67/admin/api/startup-phase @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74365ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/robot/status' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74365ms] [ERROR] Websocket /desk/api/robot/status Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74365ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/status closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74366ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74366ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74369ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/groups @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74376ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/admin/api/startup-phase' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74376ms] [ERROR] Websocket /admin/api/startup-phase Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74376ms] [INFO] Websocket wss://192.168.1.67/admin/api/startup-phase closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74377ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74377ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74405ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/groups' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74405ms] [ERROR] Websocket /desk/api/groups Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74405ms] [INFO] Websocket wss://192.168.1.67/desk/api/groups closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74406ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74406ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74498ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/navigation/mode @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74504ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/navigation/mode' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74504ms] [ERROR] Websocket /desk/api/navigation/mode Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74505ms] [INFO] Websocket wss://192.168.1.67/desk/api/navigation/mode closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74505ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74505ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74635ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/robot/gripper_state' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74635ms] [ERROR] Websocket /desk/api/robot/gripper_state Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74635ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/gripper_state closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74636ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74636ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74636ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/skills @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74646ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/skills' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74646ms] [ERROR] Websocket /desk/api/skills Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74646ms] [INFO] Websocket wss://192.168.1.67/desk/api/skills closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74647ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74647ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74744ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/execution @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74748ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/execution' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74748ms] [ERROR] Websocket /desk/api/execution Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74748ms] [INFO] Websocket wss://192.168.1.67/desk/api/execution closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74749ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74749ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   74838ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/timelines @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74841ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/timelines' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74841ms] [ERROR] Websocket /desk/api/timelines Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74842ms] [INFO] Websocket wss://192.168.1.67/desk/api/timelines closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   74842ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   74842ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   75267ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/base-leds/hardware @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75274ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/base-leds/hardware' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75274ms] [ERROR] Websocket /desk/api/base-leds/hardware Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75274ms] [INFO] Websocket wss://192.168.1.67/desk/api/base-leds/hardware closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75275ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   75275ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   75279ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/pilot/hardware @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75287ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/pilot/hardware' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75287ms] [ERROR] Websocket /desk/api/pilot/hardware Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75287ms] [INFO] Websocket wss://192.168.1.67/desk/api/pilot/hardware closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75287ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   75287ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   75290ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/guiding/mode @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75297ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/robot/guiding/mode' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75297ms] [ERROR] Websocket /desk/api/robot/guiding/mode Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75297ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/guiding/mode closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75298ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   75298ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   75302ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/timelines/0_goon @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75311ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/timelines/0_goon' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75311ms] [ERROR] Websocket /desk/api/timelines/0_goon Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75311ms] [INFO] Websocket wss://192.168.1.67/desk/api/timelines/0_goon closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75312ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   75312ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   75314ms] [WARNING] Reconnecting websocket wss://192.168.1.67/admin/api/end-effector @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75322ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/admin/api/end-effector' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75322ms] [ERROR] Websocket /admin/api/end-effector Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75322ms] [INFO] Websocket wss://192.168.1.67/admin/api/end-effector closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75323ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   75323ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   75325ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/system/status @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75333ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/system/status' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75333ms] [ERROR] Websocket /desk/api/system/status Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75333ms] [INFO] Websocket wss://192.168.1.67/desk/api/system/status closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75334ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   75334ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   75336ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/navigation/events @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75344ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/navigation/events' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75344ms] [ERROR] Websocket /desk/api/navigation/events Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75344ms] [INFO] Websocket wss://192.168.1.67/desk/api/navigation/events closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75344ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   75344ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   75355ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/guiding/configuration @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75358ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/robot/guiding/configuration' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75358ms] [ERROR] Websocket /desk/api/robot/guiding/configuration Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75358ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/guiding/configuration closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75358ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   75358ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   75367ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/status @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75376ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/robot/status' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75376ms] [ERROR] Websocket /desk/api/robot/status Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75376ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/status closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75377ms] [WARNING] Reconnecting websocket wss://192.168.1.67/admin/api/startup-phase @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75377ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   75378ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   75387ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/admin/api/startup-phase' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75387ms] [ERROR] Websocket /admin/api/startup-phase Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75387ms] [INFO] Websocket wss://192.168.1.67/admin/api/startup-phase closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75388ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   75388ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   75407ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/groups @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75415ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/groups' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75415ms] [ERROR] Websocket /desk/api/groups Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75415ms] [INFO] Websocket wss://192.168.1.67/desk/api/groups closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75416ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   75416ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   75467ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/execution' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75467ms] [ERROR] Websocket /desk/api/execution Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75467ms] [INFO] Websocket wss://192.168.1.67/desk/api/execution closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75467ms] [WARNING] Websocket was closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75469ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   75469ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   75506ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/navigation/mode @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75515ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/navigation/mode' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75515ms] [ERROR] Websocket /desk/api/navigation/mode Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75515ms] [INFO] Websocket wss://192.168.1.67/desk/api/navigation/mode closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75516ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ https://192.168.1.67/admin/api/login:0
+[   75516ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   75636ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/gripper_state @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75647ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/skills @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75749ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/execution @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   75843ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/timelines @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   76275ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/base-leds/hardware @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   76288ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/pilot/hardware @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   76298ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/guiding/mode @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   76312ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/timelines/0_goon @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   76323ms] [WARNING] Reconnecting websocket wss://192.168.1.67/admin/api/end-effector @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   76334ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/system/status @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   76344ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/navigation/events @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   76358ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/guiding/configuration @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   76378ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/status @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   76388ms] [WARNING] Reconnecting websocket wss://192.168.1.67/admin/api/startup-phase @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   76417ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/groups @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   76469ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/execution @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   76516ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/navigation/mode @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   80796ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/robot/gripper_state' failed: Error in connection establishment: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   80796ms] [ERROR] Websocket /desk/api/robot/gripper_state Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   80796ms] [INFO] Websocket wss://192.168.1.67/desk/api/robot/gripper_state closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   83867ms] [ERROR] Failed to load resource: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/admin/api/login:0
+[   83867ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   83868ms] [ERROR] Failed to load resource: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/admin/api/processes:0
+[   83868ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/skills' failed: Error in connection establishment: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   83868ms] [ERROR] Websocket /desk/api/skills Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   83868ms] [INFO] Websocket wss://192.168.1.67/desk/api/skills closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   84868ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/robot/gripper_state @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   87963ms] [ERROR] Failed to load resource: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/admin/api/login:0
+[   87963ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   87964ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/execution' failed: Error in connection establishment: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   87964ms] [ERROR] Websocket /desk/api/execution Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   87964ms] [INFO] Websocket wss://192.168.1.67/desk/api/execution closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   88964ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/skills @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   90720ms] [ERROR] Failed to load resource: net::ERR_NETWORK_CHANGED @ https://192.168.1.67/admin/api/login:0
+[   90720ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   91721ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/execution @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   94108ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/timelines' failed: Error in connection establishment: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   94108ms] [ERROR] Websocket /desk/api/timelines Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   94109ms] [INFO] Websocket wss://192.168.1.67/desk/api/timelines closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   97179ms] [ERROR] Failed to load resource: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/admin/api/login:0
+[   97179ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[   97180ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/admin/api/processes' failed: Error in connection establishment: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   97180ms] [ERROR] Websocket /admin/api/processes Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   97180ms] [INFO] Websocket wss://192.168.1.67/admin/api/processes closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   98180ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/timelines @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[  100251ms] [ERROR] Failed to load resource: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/admin/api/login:0
+[  100251ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[  100252ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/admin/api/control-token' failed: Error in connection establishment: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[  100252ms] [ERROR] Websocket /admin/api/control-token Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[  100252ms] [INFO] Websocket wss://192.168.1.67/admin/api/control-token closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[  100252ms] [WARNING] Websocket was closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[  101252ms] [WARNING] Reconnecting websocket wss://192.168.1.67/admin/api/processes @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[  103323ms] [ERROR] Failed to load resource: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/admin/api/login:0
+[  103323ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[  103324ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/base-leds/hardware' failed: Error in connection establishment: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[  103324ms] [ERROR] Websocket /desk/api/base-leds/hardware Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[  103324ms] [INFO] Websocket wss://192.168.1.67/desk/api/base-leds/hardware closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[  104324ms] [WARNING] Reconnecting websocket wss://192.168.1.67/admin/api/control-token @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[  107419ms] [ERROR] Failed to load resource: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/admin/api/login:0
+[  107419ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[  107420ms] [ERROR] WebSocket connection to 'wss://192.168.1.67/desk/api/pilot/hardware' failed: Error in connection establishment: net::ERR_ADDRESS_UNREACHABLE @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[  107420ms] [ERROR] Websocket /desk/api/pilot/hardware Event @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[  107420ms] [INFO] Websocket wss://192.168.1.67/desk/api/pilot/hardware closed CloseEvent @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[  108420ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/base-leds/hardware @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[  110169ms] [ERROR] Failed to load resource: net::ERR_NETWORK_CHANGED @ https://192.168.1.67/admin/api/login:0
+[  110169ms] [ERROR] TypeError: Failed to fetch
+    at i (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002309)
+    at d (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002998)
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004489
+    at Object.POST (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1004518)
+    at f (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214152)
+    at e.renew (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214676)
+    at e.tryRenewToken (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1214895)
+    at A.a.onclose (https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1005204) @ :0
+[  111169ms] [WARNING] Reconnecting websocket wss://192.168.1.67/desk/api/pilot/hardware @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1

@@ -1,0 +1,150 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e140]:
+      - generic [ref=e142] [cursor=pointer]:
+        - img [ref=e144]
+        - generic [ref=e147]: Goon
+      - generic [ref=e151]:
+        - generic: 
+        - generic [ref=e153]:
+          - img [ref=e156] [cursor=pointer]
+          - generic "Cart Motion" [ref=e329] [cursor=pointer]: CART MOTION
+        - generic: 
+        - generic [ref=e161]:
+          - img [ref=e164] [cursor=pointer]
+          - generic "Joint Motion" [ref=e330] [cursor=pointer]: JOINT MOTION
+        - generic: 
+      - generic:       
+    - generic [ref=e7]:
+      - generic [ref=e8]:
+        - text: 
+        - heading "TASKS " [level=5] [ref=e331]:
+          - text: TASKS
+          - generic [ref=e11] [cursor=pointer]: 
+        - generic [ref=e170] [cursor=pointer]:
+          - generic "Goon" [ref=e332]
+          - generic "Download" [ref=e333]: 
+          - generic "Clone" [ref=e334]: 
+          - generic "Rename" [ref=e335]: 
+          - generic "Delete" [ref=e336]: 
+      - generic [ref=e12]:
+        - text: 
+        - generic [ref=e13]:
+          - heading "APPS" [level=5] [ref=e337]
+          - generic [ref=e176]:
+            - generic [ref=e177]:
+              - img [ref=e179] [cursor=pointer]
+              - generic "Cart Motion" [ref=e338]: CART MOTION
+            - generic [ref=e182]:
+              - img [ref=e184] [cursor=pointer]
+              - generic "Joint Motion" [ref=e339]: JOINT MOTION
+    - generic [ref=e17]:
+      - generic [ref=e18]: "!"
+      - generic [ref=e19]:
+        - generic [ref=e20]: Unknown error
+        - generic [ref=e21]: Please stop the task
+    - dialog [ref=e350]:
+      - heading "FCI is active" [level=3] [ref=e352]
+      - generic [ref=e354]:
+        - paragraph [ref=e355]: Interaction with Desk is disabled while FCI is active.
+        - generic "Take Control" [ref=e357]:
+          - button "Deactivate FCI" [ref=e358] [cursor=pointer]:
+            - generic [ref=e359]: Deactivate FCI
+  - generic [ref=e24]:
+    - generic [ref=e25]:
+      - img [ref=e28] [cursor=pointer]
+      - generic [ref=e33]:
+        - img [ref=e35]
+        - img [ref=e39]
+        - img [ref=e54] [cursor=pointer]
+      - generic [ref=e345]:
+        - generic [ref=e57]:
+          - link "Settings" [ref=e340] [cursor=pointer]:
+            - /url: /admin
+            - img [ref=e60]
+            - generic [ref=e62]: Settings
+          - link "Manuals" [ref=e341] [cursor=pointer]:
+            - /url: /admin/manuals-page
+            - img [ref=e66]
+            - generic [ref=e69]: Manuals
+          - generic [ref=e70] [cursor=pointer]:
+            - img "Reboot-Icon" [ref=e342]
+            - generic [ref=e79]: Reboot
+          - generic [ref=e80] [cursor=pointer]:
+            - img [ref=e82]
+            - generic [ref=e86]: Shut down
+          - generic [ref=e187] [cursor=pointer]:
+            - img [ref=e189]
+            - generic [ref=e191]: Release Control
+          - generic [ref=e192] [cursor=pointer]:
+            - strong [ref=e194]: FCI
+            - generic [ref=e195]: Activate FCI
+        - generic [ref=e88]:
+          - img [ref=e90]
+          - generic [ref=e93]: franka
+          - generic "Logout" [ref=e343] [cursor=pointer]:
+            - generic "Logout" [ref=e344]:
+              - img [ref=e96]
+    - generic [ref=e100]:
+      - generic [ref=e101]:
+        - generic [ref=e102] [cursor=pointer]: Pilot Mode
+        - list [ref=e105]:
+          - listitem:
+            - generic:
+              - img
+          - listitem:
+            - generic:
+              - img
+        - generic [ref=e106] [cursor=pointer]: Guiding Mode
+        - list [ref=e110]:
+          - listitem:
+            - generic:
+              - img
+            - generic:
+              - img
+            - generic: TRANSLATION
+          - listitem:
+            - generic:
+              - img
+            - generic:
+              - img
+          - listitem:
+            - generic:
+              - img
+            - generic:
+              - img
+          - listitem:
+            - generic:
+              - img
+            - generic:
+              - generic:
+                - img
+              - generic:
+                - img
+            - generic:
+              - img
+      - generic [ref=e111]:
+        - generic [ref=e112]: Joints
+        - list [ref=e115]:
+          - listitem [ref=e291] [cursor=pointer]:
+            - img [ref=e293]
+          - listitem:
+            - generic:
+              - img
+        - generic [ref=e116]: Robot Status
+        - generic [ref=e118]:
+          - list [ref=e123]:
+            - listitem:
+              - generic:
+                - img
+              - generic: "OFF"
+            - listitem:
+              - generic:
+                - img
+              - generic: "OFF"
+          - generic [ref=e124]:
+            - generic [ref=e125]: Stopped
+            - list
+        - generic [ref=e129]:
+          - generic [ref=e130]: Run the Task
+          - img [ref=e133]

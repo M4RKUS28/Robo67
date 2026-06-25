@@ -1,0 +1,9 @@
+[    4650ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://192.168.1.67/login?redirect=https://192.168.1.67/desk/:0
+[   27214ms] [ERROR] Failed to load resource: the server responded with a status of 423 () @ https://192.168.1.67/desk/api/robot/pilot_colors:0
+[   27214ms] [WARNING] Could not parse error body SyntaxError: Failed to execute 'json' on 'Response': Unexpected end of JSON input
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002783
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002986 @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   27214ms] [ERROR] setPilotColors: Error
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002853 @ https://192.168.1.67/desk/app.8d758dab42022249b050.js:1
+[   27215ms] Error
+    at https://192.168.1.67/desk/app.8d758dab42022249b050.js:2:1002853

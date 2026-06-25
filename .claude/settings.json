@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(rs-enumerate-devices)",
+      "Bash(rs-enumerate-devices *)",
+      "Bash(dpkg -l *)",
+      "Bash(dpkg --list *)",
+      "Bash(apt-cache show *)",
+      "Bash(apt-cache search *)",
+      "Bash(pip3 show *)",
+      "Bash(pip show *)",
+      "Bash(ffprobe *)",
+      "Bash(udevadm info *)",
+      "Bash(lscpu)"
+    ]
+  }
+}

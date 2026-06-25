@@ -48,6 +48,31 @@ publishes `o_t_ee` (EE pose, col-major 4x4), `o_f_ext_hat_k` (ext wrench), `robo
   (`franka_controllers/CartesianImpedanceController`) is also present but is **real-only / unconfigured**;
   we do NOT use it.
 
+## Phase 3 integration findings (orchestrator vs. live sim)
+
+1. **Sim boots PAUSED.** `GetSimInfo` reports `paused=True` initially; physics won't
+   step until you unpause: `ros2 service call /set_pause mujoco_ros_msgs/srv/SetPause "{paused: false}"`.
+   (`activate_cartesian.sh` now does this.)
+2. **The MMC cartesian impedance controller DISCARDS any desired pose > 0.1 m from the
+   CURRENT pose** (and > 0.15 rad in orientation) — see
+   `panda_cartesian_impedance_controller.cpp:28-47`. Therefore the orchestrator must clamp
+   every commanded setpoint to a small **lead ahead of the ACTUAL EE** (`safety.max_lead_m`,
+   default 0.05, MUST be < 0.1), NOT relative to the previous command. Anchoring to the
+   previous command lets the setpoint outrun the lagging arm, after which the controller
+   silently rejects everything and the arm freezes.
+3. **Never call `rclpy.spin_until_future_complete` inside a timer/subscription callback**
+   (re-entrant spin -> executor deadlock/hang). The orchestrator sets stiffness fire-and-forget
+   (`call_async`, no spin) because the contact-stiffness switch happens inside the control loop.
+4. **`o_f_ext_hat_k` is all zeros in sim** — MuJoCo here does not estimate the external wrench,
+   so force-based contact detection CANNOT be validated in sim. Validate descend-to-contact +
+   spiral on HARDWARE only (matches the design: sim = plumbing/logic, hardware = insertion).
+5. Sim Cartesian tracking is slow/soft (arm sags, ~mm/s) even at high commanded stiffness;
+   treat sim as a plumbing/logic check, not a tracking-fidelity check.
+6. Validated in sim: controller activation, 50 Hz `CartesianImpedanceGoal` streaming accepted by
+   the controller, `FrankaState` parsing (`o_t_ee` -> xyz/quat, `o_f_ext_hat_k[2]` -> Fz), FSM
+   `IDLE -> MOVE_ABOVE` with the arm moving in the commanded direction, workspace + lead clamps,
+   and the contact-stiffness switch without deadlock.
+
 ## Hardware deltas to confirm in Phase 4
 
 - Gripper namespace on real hardware (sim uses `/panda_gripper_sim_node`).

@@ -1,0 +1,135 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e140]:
+        - generic [ref=e142] [cursor=pointer]:
+          - img [ref=e144]
+          - generic [ref=e147]: Goon
+        - generic [ref=e151]:
+          - text: 
+          - generic [ref=e153]:
+            - img [ref=e156] [cursor=pointer]
+            - generic [ref=e296] [cursor=pointer]: CART MOTION
+          - text: 
+          - generic [ref=e161]:
+            - img [ref=e164] [cursor=pointer]
+            - generic [ref=e297] [cursor=pointer]: JOINT MOTION
+          - text: 
+        - text:       
+      - generic [ref=e7]:
+        - generic [ref=e8]:
+          - text: 
+          - heading [level=5] [ref=e298]:
+            - text: TASKS
+            - generic [ref=e11] [cursor=pointer]: 
+          - generic [ref=e170] [cursor=pointer]:
+            - generic [ref=e299]: Goon
+            - generic [ref=e300]: 
+            - generic [ref=e301]: 
+            - generic [ref=e302]: 
+            - generic [ref=e303]: 
+        - generic [ref=e12]:
+          - text: 
+          - generic [ref=e13]:
+            - heading [level=5] [ref=e304]: APPS
+            - generic [ref=e176]:
+              - generic [ref=e177]:
+                - img [ref=e179] [cursor=pointer]
+                - generic [ref=e305]: CART MOTION
+              - generic [ref=e182]:
+                - img [ref=e184] [cursor=pointer]
+                - generic [ref=e306]: JOINT MOTION
+      - generic [ref=e17]:
+        - generic [ref=e18]: "!"
+        - generic [ref=e19]:
+          - generic [ref=e20]: Unknown error
+          - generic [ref=e21]: Please stop the task
+    - generic [ref=e24]:
+      - generic [ref=e25]:
+        - img [ref=e28] [cursor=pointer]
+        - generic [ref=e33]:
+          - img [ref=e35]
+          - img [ref=e39]
+          - img [ref=e54] [cursor=pointer]
+        - generic [ref=e57]:
+          - link [ref=e307] [cursor=pointer]:
+            - /url: /admin
+            - img [ref=e60]
+            - generic [ref=e62]: Settings
+          - link [ref=e308] [cursor=pointer]:
+            - /url: /admin/manuals-page
+            - img [ref=e66]
+            - generic [ref=e69]: Manuals
+          - generic [ref=e70] [cursor=pointer]:
+            - img [ref=e309]
+            - generic [ref=e79]: Reboot
+          - generic [ref=e80] [cursor=pointer]:
+            - img [ref=e82]
+            - generic [ref=e86]: Shut down
+          - generic [ref=e187] [cursor=pointer]:
+            - img [ref=e189]
+            - generic [ref=e191]: Release Control
+          - generic [ref=e192] [cursor=pointer]:
+            - strong [ref=e194]: FCI
+            - generic [ref=e195]: Activate FCI
+        - generic [ref=e88]:
+          - img [ref=e90]
+          - generic [ref=e93]: franka
+          - img [ref=e96] [cursor=pointer]
+      - generic [ref=e100]:
+        - generic [ref=e101]:
+          - generic [ref=e102]: Pilot Mode
+          - list [ref=e105]:
+            - listitem [ref=e196] [cursor=pointer]:
+              - img [ref=e198]
+            - listitem [ref=e210] [cursor=pointer]:
+              - img [ref=e212]
+          - generic [ref=e106]: Guiding Mode
+          - list [ref=e110]:
+            - listitem [ref=e232] [cursor=pointer]:
+              - img [ref=e234]
+              - img [ref=e240]
+              - generic [ref=e290]: TRANSLATION
+            - listitem [ref=e245] [cursor=pointer]:
+              - img [ref=e247]
+              - img [ref=e253]
+            - listitem [ref=e258] [cursor=pointer]:
+              - img [ref=e260]
+              - img [ref=e266]
+            - listitem [ref=e272] [cursor=pointer]:
+              - img [ref=e274]
+              - img [ref=e280]
+              - img [ref=e283]
+              - img [ref=e286]
+        - generic [ref=e111]:
+          - generic [ref=e112]: Joints
+          - list [ref=e115]:
+            - listitem [ref=e291] [cursor=pointer]:
+              - img [ref=e293]
+            - listitem:
+              - generic:
+                - img
+          - generic [ref=e116]: Robot Status
+          - generic [ref=e118]:
+            - list [ref=e123]:
+              - listitem:
+                - generic:
+                  - img
+                - generic: "OFF"
+              - listitem:
+                - generic:
+                  - img
+                - generic: "OFF"
+            - generic [ref=e125]: Stopped
+          - generic [ref=e129]:
+            - generic [ref=e130]: Run the Task
+            - img [ref=e133]
+  - dialog [ref=e314]:
+    - heading "Do you want to close the brakes?" [level=3] [ref=e316]
+    - generic [ref=e317]:
+      - paragraph [ref=e319]: Before proceeding check if the robot is currently executing.
+      - generic [ref=e320]:
+        - button "Cancel" [ref=e323] [cursor=pointer]:
+          - generic [ref=e324]: Cancel
+        - button "Confirm" [ref=e327] [cursor=pointer]:
+          - generic [ref=e328]: Confirm
