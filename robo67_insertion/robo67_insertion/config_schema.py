@@ -71,6 +71,29 @@ class TopicsCfg:
     gripper_ns: str = "/panda_gripper_sim_node"   # sim; hardware ns confirmed in Phase 4
     socket_pose: str = "/robo67/socket_pose"
     socket_detection: str = "/robo67/socket_detection"
+    servo_correction: str = "/robo67/servo_correction"   # D405 eye-in-hand [dx, dy]
+
+    # -- logging: camera feeds (sensor_msgs/CompressedImage, format "jpeg") ---
+    # Raw feeds are published by the dedicated camera_publisher node that OWNS
+    # each /dev/videoN (only one process may open a V4L2 device); the overlay
+    # feeds are the same frame annotated with the detection by the detector
+    # nodes. See docs/architecture/logging-topics.md.
+    cam_overhead_raw: str = "/robo67/camera/overhead/image_raw/compressed"
+    cam_overhead_overlay: str = "/robo67/camera/overhead/overlay/compressed"
+    cam_gripper_raw: str = "/robo67/camera/gripper/image_raw/compressed"
+    cam_gripper_overlay: str = "/robo67/camera/gripper/overlay/compressed"
+
+    # -- logging: insertion telemetry (published by hardware_insertion_node) --
+    insertion_phase: str = "/robo67/insertion/phase"            # std_msgs/String
+    insertion_ee_pose: str = "/robo67/insertion/ee_pose"        # geometry_msgs/PoseStamped
+    insertion_ee_speed: str = "/robo67/insertion/ee_speed"      # std_msgs/Float64 (m/s)
+    insertion_command_pose: str = "/robo67/insertion/command_pose"  # geometry_msgs/PoseStamped
+    insertion_wrench: str = "/robo67/insertion/wrench"          # geometry_msgs/WrenchStamped
+    insertion_fz: str = "/robo67/insertion/fz"                  # std_msgs/Float64 (N)
+    insertion_fz_baseline: str = "/robo67/insertion/fz_baseline"  # std_msgs/Float64 (N)
+    insertion_contact: str = "/robo67/insertion/contact"        # std_msgs/Bool
+    insertion_retries: str = "/robo67/insertion/retries"        # std_msgs/Int32
+    insertion_diagnostics: str = "/robo67/insertion/diagnostics"  # diagnostic_msgs/DiagnosticArray
 
 
 @dataclass
@@ -90,6 +113,9 @@ class CameraCfg:
     c920_fy: float = 1000.0
     d405_fx: float = 430.0
     d405_fy: float = 430.0
+    # camera_publisher streaming defaults (logging path).
+    publish_fps: float = 10.0        # raw CompressedImage publish rate per camera
+    jpeg_quality: int = 80           # cv2.imencode JPEG quality (1-100)
 
 
 @dataclass

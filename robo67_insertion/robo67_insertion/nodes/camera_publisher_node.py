@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""Dedicated camera publisher node (logging path).
+
+Only ONE process may open a V4L2 ``/dev/videoN`` at a time, so this node is the
+single OWNER of one camera. It captures frames continuously and publishes them
+as ``sensor_msgs/CompressedImage`` (JPEG); everything else that needs the feed
+(the detector nodes, the dashboard, ``rqt_image_view``, ``ros2 bag``) SUBSCRIBES
+instead of grabbing the device itself. This removes the device contention that
+previously existed between the detector and the dashboard.
+
+One node instance per camera, selected with the ``camera`` parameter:
+
+* ``overhead`` / ``c920``  -> ``camera.c920_device``       -> ``topics.cam_overhead_raw``
+* ``gripper``  / ``d405``  -> ``camera.d405_color_device`` -> ``topics.cam_gripper_raw``
+
+Capture reuses the proven ``grab_frame_gst`` path (GStreamer CLI with a
+cv2/V4L2 fallback). A background thread fills a latest-frame buffer; a timer
+publishes it at ``fps`` so a slow grab never stalls the executor. Set
+``image_path`` to loop a still image instead of a camera (offline / CI smoke).
+"""
+from __future__ import annotations
+
+import os
+import threading
+import time
+
+import rclpy
+from rclpy.node import Node
+
+from sensor_msgs.msg import CompressedImage
+
+from robo67_insertion.config_schema import load_config
+from robo67_insertion.lib.image_overlay import encode_jpeg
+from robo67_insertion.nodes.socket_detector_node import device_path, grab_frame_gst
+
+
+def _default_config_path() -> str:
+    here = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return os.path.join(here, "config", "robo67.yaml")
+
+
+# camera -> (config device attr, config raw-topic attr, default frame_id, uses_exposure)
+_CAMERAS = {
+    "overhead": ("c920_device", "cam_overhead_raw", "c920_overhead", True),
+    "c920": ("c920_device", "cam_overhead_raw", "c920_overhead", True),
+    "gripper": ("d405_color_device", "cam_gripper_raw", "d405_color", False),
+    "d405": ("d405_color_device", "cam_gripper_raw", "d405_color", False),
+}
+
+
+class CameraPublisher(Node):
+    def __init__(self):
+        super().__init__("camera_publisher")
+        self.declare_parameter("config_path", "")
+        self.declare_parameter("camera", "overhead")
+        self.declare_parameter("device", "")       # override; else from config
+        self.declare_parameter("topic", "")        # override; else from config
+        self.declare_parameter("fps", 0.0)         # 0 -> camera.publish_fps
+        self.declare_parameter("jpeg_quality", 0)  # 0 -> camera.jpeg_quality
+        self.declare_parameter("exposure", -1)     # -1 -> config (overhead) / auto
+        self.declare_parameter("width", 1280)
+        self.declare_parameter("height", 720)
+        self.declare_parameter("image_path", "")   # offline: loop a still image
+        self.declare_parameter("frame_id", "")
+
+        cfg_path = self.get_parameter("config_path").value or _default_config_path()
+        self.cfg = load_config(cfg_path)
+        cam = str(self.get_parameter("camera").value).lower()
+        if cam not in _CAMERAS:
+            raise ValueError(f"unknown camera {cam!r}; expected one of {list(_CAMERAS)}")
+        dev_attr, topic_attr, default_frame, uses_exposure = _CAMERAS[cam]
+
+        self.device = self.get_parameter("device").value or getattr(self.cfg.camera, dev_attr)
+        self.topic = self.get_parameter("topic").value or getattr(self.cfg.topics, topic_attr)
+        self.fps = float(self.get_parameter("fps").value) or float(self.cfg.camera.publish_fps)
+        self.fps = max(0.5, self.fps)
+        self.quality = int(self.get_parameter("jpeg_quality").value) or int(self.cfg.camera.jpeg_quality)
+        exp_param = int(self.get_parameter("exposure").value)
+        if uses_exposure:
+            self.exposure = self.cfg.camera.c920_exposure if exp_param < 0 else exp_param
+        else:
+            self.exposure = None if exp_param < 0 else exp_param
+        self.width = int(self.get_parameter("width").value)
+        self.height = int(self.get_parameter("height").value)
+        self.image_path = self.get_parameter("image_path").value or ""
+        self.frame_id = self.get_parameter("frame_id").value or default_frame
+
+        self.pub = self.create_publisher(CompressedImage, self.topic, 5)
+
+        self._lock = threading.Lock()
+        self._jpeg: bytes | None = None
+        self._frames = 0
+        self._stop = threading.Event()
+        self._still = None
+        self._thread = threading.Thread(target=self._capture_loop, daemon=True)
+        self._thread.start()
+
+        self.timer = self.create_timer(1.0 / self.fps, self._publish)
+        self.get_logger().info(
+            f"camera_publisher up: camera={cam} device={device_path(self.device)} "
+            f"-> {self.topic} @ {self.fps} Hz (jpeg q{self.quality}, "
+            f"exposure={self.exposure}, frame_id={self.frame_id})")
+
+    # -- capture (background thread) -------------------------------------
+
+    def _grab(self):
+        import cv2
+
+        if self.image_path:
+            if self._still is None:
+                self._still = cv2.imread(self.image_path)
+            return self._still
+        return grab_frame_gst(self.device, width=self.width, height=self.height,
+                              exposure=self.exposure)
+
+    def _capture_loop(self):
+        period = 1.0 / self.fps
+        while not self._stop.is_set():
+            t0 = time.time()
+            frame = None
+            try:
+                frame = self._grab()
+            except Exception as exc:  # noqa: BLE001 - keep streaming on transient errors
+                self.get_logger().warn(f"grab error: {exc}", throttle_duration_sec=5.0)
+            if frame is not None:
+                jpeg = encode_jpeg(frame, self.quality)
+                if jpeg is not None:
+                    with self._lock:
+                        self._jpeg = jpeg
+                        self._frames += 1
+            else:
+                self.get_logger().warn("frame grab failed", throttle_duration_sec=5.0)
+            dt = time.time() - t0
+            if period - dt > 0:
+                self._stop.wait(period - dt)
+
+    # -- publish (executor thread) ---------------------------------------
+
+    def _publish(self):
+        with self._lock:
+            jpeg = self._jpeg
+            n = self._frames
+        if jpeg is None:
+            return
+        msg = CompressedImage()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = self.frame_id
+        msg.format = "jpeg"
+        msg.data = jpeg
+        self.pub.publish(msg)
+        if n and n % 100 == 0:
+            self.get_logger().info(f"published {n} frames", throttle_duration_sec=10.0)
+
+    def destroy_node(self):
+        self._stop.set()
+        return super().destroy_node()
+
+
+def main(args=None):
+    from rclpy.executors import ExternalShutdownException
+
+    rclpy.init(args=args)
+    node = CameraPublisher()
+    try:
+        rclpy.spin(node)
+    except (KeyboardInterrupt, ExternalShutdownException):
+        pass
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
+
+if __name__ == "__main__":
+    main()

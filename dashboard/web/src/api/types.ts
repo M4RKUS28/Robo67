@@ -89,6 +89,7 @@ export interface Health {
   cameras: Record<string, boolean>;
   rate_hz?: number;
   phase_topic?: boolean;
+  telemetry?: boolean;
   devices?: Record<string, number>;
 }
 
@@ -108,7 +109,10 @@ export interface Config {
     insert_depth_m: number;
   };
   workspace_aabb?: number[][];
-  cameras: Record<string, { label: string; size: [number, number]; kind: string }>;
+  cameras: Record<
+    string,
+    { label: string; size: [number, number]; kind: string; overlay?: string }
+  >;
 }
 
 // One charting sample kept in the ring buffer.

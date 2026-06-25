@@ -11,7 +11,7 @@ It runs in two modes behind one API:
 | mode   | data source                                                                 | where it runs |
 |--------|------------------------------------------------------------------------------|---------------|
 | `mock` | a synthetic insertion driven by the **real** `insertion_intent` seam + a virtual plant; cameras are the saved `robo67_insertion/captures/*.jpg` | anywhere (no ROS / no arm) |
-| `live` | a passive ROS observer (`FrankaState` + detection topics) + GStreamer camera grabs | inside `multipanda-container` |
+| `live` | a passive ROS observer that **subscribes to rostopics only** — camera feeds (`CompressedImage`) + insertion telemetry + `FrankaState`. It never opens a camera device. | inside `multipanda-container` |
 
 ```
 dashboard/
@@ -63,36 +63,36 @@ python3 -u /host/Code/Robo67/dashboard/server/serve.py \
 # or use the host Vite dev server pointed at the container.
 ```
 
-Subscribed topics:
+Subscribed topics (full reference: `docs/architecture/logging-topics.md`):
 
-- `/franka_robot_state_broadcaster/robot_state` → EE pose, external wrench (force **N**, `Fz`), `robot_mode`; EE **speed** is derived from successive poses.
-- `/robo67/socket_detection` (`[u,v,r,score]`) → **C920** hole marker.
-- `/robo67/socket_pose` → socket base XY/Z.
-- `/robo67/servo_correction` (`[dx,dy]`) → **D405** eye-in-hand servo vector.
-- `/robo67/insertion_phase` (`std_msgs/String`, **optional**) → the FSM phase.
+Cameras (`sensor_msgs/CompressedImage`, jpeg) — published by `camera_publisher`
+and the detector overlay feeds (the dashboard no longer opens a device):
 
-Camera device numbers default to the values in `robo67_insertion/config/robo67.yaml`
-(`camera.c920_device`, `camera.d405_color_device`); override with
-`--c920-device N` / `--d405-device N`.
+- `/robo67/camera/overhead/image_raw/compressed` → **C920** raw → feed `c920`.
+- `/robo67/camera/overhead/overlay/compressed` → C920 + socket overlay → feed `c920_overlay`.
+- `/robo67/camera/gripper/image_raw/compressed` → **D405** raw → feed `d405`.
+- `/robo67/camera/gripper/overlay/compressed` → D405 + servo overlay → feed `d405_overlay`.
 
-### Showing the real FSM phase in live mode (optional)
+Robot state + telemetry:
 
-The orchestrator currently only *logs* phase transitions, so live mode shows the
-coarse `robot_mode` (Idle/Move/Reflex) until the phase is published. To surface
-the full decision phase, publish it from whichever runner drives the arm
-(`insertion_orchestrator_node` or `hardware_insertion_node`) — additive, does not
-touch the control law:
+- `/franka_robot_state_broadcaster/robot_state` → EE pose, external wrench (force **N**, `Fz`), `robot_mode`; EE **speed** derived from successive poses (always-on).
+- `/robo67/insertion/phase` (`std_msgs/String`) → the FSM phase.
+- `/robo67/insertion/command_pose` (`PoseStamped`) → commanded equilibrium (`cmd`).
+- `/robo67/insertion/fz_baseline` (`Float64`), `/robo67/insertion/contact` (`Bool`), `/robo67/insertion/retries` (`Int32`).
+- `/robo67/socket_detection` (`[u,v,r,score]`) + `/robo67/socket_pose` → C920 hole marker / base XY.
+- `/robo67/servo_correction` (`[dx,dy]`) → D405 servo vector.
 
-```python
-from std_msgs.msg import String
-# once, in __init__/setup:
-self._phase_pub = self.create_publisher(String, "/robo67/insertion_phase", 10)
-# on every transition (where the phase string changes):
-self._phase_pub.publish(String(data=new_phase))   # e.g. "SEARCH_SPIRAL"
-```
+Each camera panel has a **Raw / Processed** toggle: *Raw* shows the
+`camera_publisher` feed with the dashboard's client-side SVG overlay; *Processed*
+shows the ROS overlay feed with the detection already burned in by the detector.
 
-The dashboard subscribes to this topic automatically and degrades gracefully if
-it is absent.
+> The `--c920-device` / `--d405-device` flags are accepted for backwards
+> compatibility but are **ignored** — the dashboard subscribes to camera topics
+> now. Topic names come from `robo67_insertion/config/robo67.yaml` (`topics.*`).
+
+The FSM phase is published automatically by `hardware_insertion_node`
+(`--publish-telemetry`, on by default); live mode degrades gracefully to the
+coarse `robot_mode` until telemetry arrives.
 
 ## HTTP API
 
@@ -101,7 +101,7 @@ it is absent.
 | `GET /api/health` | mode, ROS/camera availability |
 | `GET /api/config` | phase list, thresholds (contact/abort N, speed cap), camera metadata |
 | `GET /api/stream` | **SSE** telemetry, one JSON snapshot per tick (see `web/src/api/types.ts`) |
-| `GET /api/cam/c920`, `/api/cam/d405` | **MJPEG** camera streams |
+| `GET /api/cam/<name>` | **MJPEG** camera stream. live `<name>`: `c920`, `c920_overlay`, `d405`, `d405_overlay` |
 | `GET /api/cam/<name>/jpg` | single JPEG snapshot |
 
 Telemetry is pushed over plain Server-Sent Events and cameras over MJPEG, so the

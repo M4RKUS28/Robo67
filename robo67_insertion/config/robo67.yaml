@@ -45,6 +45,24 @@ topics:
   gripper_ns: /panda_gripper_sim_node
   socket_pose: /robo67/socket_pose
   socket_detection: /robo67/socket_detection
+  servo_correction: /robo67/servo_correction
+  # Logging: camera feeds (sensor_msgs/CompressedImage, "jpeg").
+  # Raw = dedicated camera_publisher (owns the device); overlay = detector-annotated.
+  cam_overhead_raw: /robo67/camera/overhead/image_raw/compressed
+  cam_overhead_overlay: /robo67/camera/overhead/overlay/compressed
+  cam_gripper_raw: /robo67/camera/gripper/image_raw/compressed
+  cam_gripper_overlay: /robo67/camera/gripper/overlay/compressed
+  # Logging: insertion telemetry (hardware_insertion_node --publish-telemetry).
+  insertion_phase: /robo67/insertion/phase
+  insertion_ee_pose: /robo67/insertion/ee_pose
+  insertion_ee_speed: /robo67/insertion/ee_speed
+  insertion_command_pose: /robo67/insertion/command_pose
+  insertion_wrench: /robo67/insertion/wrench
+  insertion_fz: /robo67/insertion/fz
+  insertion_fz_baseline: /robo67/insertion/fz_baseline
+  insertion_contact: /robo67/insertion/contact
+  insertion_retries: /robo67/insertion/retries
+  insertion_diagnostics: /robo67/insertion/diagnostics
 
 camera:
   # Bare /dev/videoN numbers renumber across replug/reboot, so reference the
@@ -64,5 +82,8 @@ camera:
   c920_fy: 1000.0
   d405_fx: 430.0
   d405_fy: 430.0
+  # camera_publisher streaming (logging path)
+  publish_fps: 10.0
+  jpeg_quality: 80
 
 socket_cube_height_m: 0.06

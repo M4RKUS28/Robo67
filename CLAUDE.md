@@ -44,6 +44,31 @@ primitives). Re-render with `plantuml -tsvg docs/architecture/diagrams/*.puml`.
   parity harness). Primitives `wrench/safety/geometry/servoing` remain as building
   blocks the seams compose. Run `python3 -m pytest robo67_insertion/test -q` (144 green).
 
+## Logging & observability (rostopics — 2026-06-25)
+
+Everything the insertion stack does is published to rostopics (single source of
+truth for the dashboard + `ros2 bag`). Full reference:
+[`docs/architecture/logging-topics.md`](docs/architecture/logging-topics.md).
+
+- **Cameras** (`sensor_msgs/CompressedImage`, jpeg): a dedicated
+  `camera_publisher` node OWNS each `/dev/videoN` (only one process may open a
+  V4L2 device) and streams the raw feed; the detector nodes SUBSCRIBE (no device
+  contention) and republish an **overlay** feed (detection burned in):
+  `/robo67/camera/{overhead,gripper}/{image_raw,overlay}/compressed`.
+- **Insertion telemetry** (`hardware_insertion_node`, default on, throttled to
+  `--telemetry-rate` 20 Hz, also in `--dry-run`): `/robo67/insertion/{phase,
+  ee_pose,ee_speed,command_pose,wrench,fz,fz_baseline,contact,retries,diagnostics}`.
+  Observational only — never commands the arm.
+- New host-tested seams: `lib/image_overlay.py` (overlay drawing) and
+  `lib/telemetry.py` (speed tracker + diagnostic rollup). Topic names live in
+  `config_schema.TopicsCfg` / `config/robo67.yaml`.
+- Bring up the logging graph: `ros2 launch robo67_insertion logging.launch.py
+  socket_top_z:=<z> [gripper:=true]`. New entry points: `camera_publisher`,
+  `hardware_insertion`.
+- The **dashboard** (`dashboard/`) live mode now SUBSCRIBES to all of these
+  (cameras + telemetry); it no longer opens any camera device. The C920/D405
+  panels have a Raw/Processed toggle (processed = the ROS overlay feed).
+
 ## Hardware runs (real arm — verified 2026-06-25)
 
 - Real bringup runs **inside `multipanda-container`** on **`ROS_DOMAIN_ID=1`** (`ROS_LOCALHOST_ONLY=0`), `robot_ip:=192.168.1.67`. A leftover sim sits on domain 7 — keep real work on domain 1.

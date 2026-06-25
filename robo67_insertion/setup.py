@@ -28,6 +28,8 @@ setup(
             'calibration = robo67_insertion.nodes.calibration_node:main',
             'insertion_orchestrator = robo67_insertion.nodes.insertion_orchestrator_node:main',
             'd405_servo = robo67_insertion.nodes.d405_servo_node:main',
+            'camera_publisher = robo67_insertion.nodes.camera_publisher_node:main',
+            'hardware_insertion = robo67_insertion.nodes.hardware_insertion_node:main',
         ],
     },
 )
