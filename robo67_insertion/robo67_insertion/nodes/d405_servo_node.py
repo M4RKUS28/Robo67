@@ -2,9 +2,12 @@
 """D405 eye-in-hand visual-servoing node (milestone B+ refinement).
 
 When the EE is roughly above the socket (from the C920 coarse pose), this node
-detects the hole in the D405 image, computes a base-frame XY correction with
-:func:`~robo67_insertion.lib.servoing.ibvs_correction` (tool is vertical, so the
-D405 image axes map to base XY via depth + intrinsics), and publishes the
+detects the hole in the D405 image and computes a base-frame XY correction
+through the pixel-to-base mapping seam
+(:class:`~robo67_insertion.lib.pixel_mapping.PinholeMappingAdapter`, which
+composes the pinhole IBVS model; tool is vertical, so the D405 image axes map to
+base XY via depth + intrinsics). The seam returns the UNSCALED correction
+(gain = 1.0); this node applies the proportional servo gain and publishes the
 correction on ``/robo67/servo_correction`` (std_msgs/Float64MultiArray = [dx, dy]).
 The orchestrator can add this to the socket XY before descending.
 
@@ -12,7 +15,7 @@ Depth: with ``pyrealsense2`` the hole depth gives socket-top Z directly; without
 it, fall back to a configured standoff. NOTE: the container currently lacks D405
 passthrough + a working cv2 (see PHASE0_VERIFIED.md) — this node targets the
 hardware bring-up where the D405 is accessible. The control law is unit-tested in
-``test/test_servoing.py``.
+``test/test_servoing.py`` and the mapping seam in ``test/test_pixel_mapping.py``.
 """
 from __future__ import annotations
 
@@ -25,7 +28,11 @@ from std_msgs.msg import Float64MultiArray
 
 from robo67_insertion.config_schema import load_config
 from robo67_insertion.lib.hole_detect import HoleParams, detect_holes
-from robo67_insertion.lib.servoing import ibvs_correction
+from robo67_insertion.lib.pixel_mapping import (
+    MappingContext,
+    PinholeMappingAdapter,
+    PixelObservation,
+)
 from robo67_insertion.nodes.socket_detector_node import grab_frame_gst
 
 
@@ -50,6 +57,7 @@ class D405Servo(Node):
         self.gain = float(self.get_parameter("gain").value)
         self.image_path = self.get_parameter("image_path").value or ""
         self.params = HoleParams()
+        self.mapper = PinholeMappingAdapter()
 
         self.pub = self.create_publisher(Float64MultiArray, "/robo67/servo_correction", 10)
         rate = max(0.2, float(self.get_parameter("rate_hz").value))
@@ -73,10 +81,19 @@ class D405Servo(Node):
         if not holes:
             return
         hole = holes[0]
-        dx, dy = ibvs_correction(
-            (hole.u, hole.v), (w / 2.0, h / 2.0), self.depth_m,
-            self.cfg.camera.d405_fx, self.cfg.camera.d405_fy, self.gain,
+        # Seam returns the UNSCALED base-frame XY correction (gain = 1.0); the
+        # proportional servo gain is applied HERE, in the node, never in the seam.
+        dx0, dy0 = self.mapper.map_xy(
+            PixelObservation(hole.u, hole.v),
+            MappingContext(
+                depth_m=self.depth_m,
+                fx=self.cfg.camera.d405_fx,
+                fy=self.cfg.camera.d405_fy,
+                center_u=w / 2.0,
+                center_v=h / 2.0,
+            ),
         )
+        dx, dy = self.gain * dx0, self.gain * dy0
         msg = Float64MultiArray()
         msg.data = [float(dx), float(dy)]
         self.pub.publish(msg)

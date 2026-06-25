@@ -3,8 +3,9 @@
 
 Grabs overhead C920 frames, detects the dark circular hole
 (:func:`~robo67_insertion.lib.hole_detect.detect_holes`), maps the best hole's
-pixel to robot-base XY via the calibrated homography
-(:func:`~robo67_insertion.lib.geometry.pixel_to_base`), and publishes:
+pixel to robot-base XY through the pixel-to-base mapping seam
+(:class:`~robo67_insertion.lib.pixel_mapping.HomographyMappingAdapter`, which
+composes the calibrated homography), and publishes:
 
 * ``/robo67/socket_pose``      (geometry_msgs/PoseStamped, frame ``panda_link0``)
 * ``/robo67/socket_detection`` (std_msgs/Float64MultiArray = [u, v, radius_px, score])
@@ -31,8 +32,12 @@ from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Float64MultiArray
 
 from robo67_insertion.config_schema import load_config
-from robo67_insertion.lib import geometry
 from robo67_insertion.lib.hole_detect import HoleParams, detect_holes
+from robo67_insertion.lib.pixel_mapping import (
+    HomographyMappingAdapter,
+    MappingContext,
+    PixelObservation,
+)
 
 
 def _default_config_path() -> str:
@@ -84,9 +89,11 @@ class SocketDetector(Node):
             os.path.dirname(cfg_path), "c920_homography.npz"
         )
         self.H = None
+        self.mapper = None
         if os.path.exists(hpath):
             data = np.load(hpath)
             self.H = data["H"]
+            self.mapper = HomographyMappingAdapter(self.H)
             self.get_logger().info(f"loaded homography from {hpath}")
         else:
             self.get_logger().warn(
@@ -121,8 +128,8 @@ class SocketDetector(Node):
         det.data = [float(h.u), float(h.v), float(h.radius_px), float(h.score)]
         self.pub_det.publish(det)
 
-        if self.H is not None:
-            base_xy = geometry.pixel_to_base(self.H, np.array([h.u, h.v], dtype=float))
+        if self.mapper is not None:
+            base_xy = self.mapper.map_xy(PixelObservation(h.u, h.v), MappingContext())
             msg = PoseStamped()
             msg.header.stamp = self.get_clock().now().to_msg()
             msg.header.frame_id = "panda_link0"
