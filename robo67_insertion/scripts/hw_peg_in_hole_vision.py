@@ -117,8 +117,58 @@ def build_detector(args):
     return lambda img: detect_holes(img, params)
 
 
+def _grab_frames_topic(args):
+    """Grab N frames by SUBSCRIBING to the camera_publisher's compressed feed.
+
+    This is the preferred path: the logging ``camera_publisher`` node OWNS the
+    /dev/videoN device (only one process may open a V4L2 device) and streams it;
+    every consumer -- detectors, dashboard, and this insertion runner -- just
+    subscribes. No device contention. Inits/​shuts down its own rclpy context so
+    the later ``hardware_insertion_node.run_ros`` can re-init cleanly.
+    """
+    import cv2
+    import numpy as np
+    import rclpy
+    from rclpy.node import Node
+    from rclpy.qos import qos_profile_sensor_data
+    from sensor_msgs.msg import CompressedImage
+
+    own_ctx = not rclpy.ok()
+    if own_ctx:
+        rclpy.init()
+    node = Node("hw_peg_vision_grab")
+    got = []
+
+    def _cb(msg):
+        arr = np.frombuffer(bytes(msg.data), dtype=np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        if img is not None:
+            got.append(img)
+
+    # BEST_EFFORT to match the camera_publisher's sensor-data QoS (a RELIABLE
+    # subscriber would be QoS-incompatible and receive nothing).
+    node.create_subscription(CompressedImage, args.camera_topic, _cb,
+                             qos_profile_sensor_data)
+    want = max(1, int(args.frames))
+    t0 = time.time()
+    while len(got) < want and time.time() - t0 < args.camera_timeout:
+        rclpy.spin_once(node, timeout_sec=0.1)
+    node.destroy_node()
+    if own_ctx:
+        rclpy.shutdown()
+    if not got:
+        return [], (f"no frames on camera topic {args.camera_topic} within "
+                    f"{args.camera_timeout:.0f}s -- is camera_publisher running?")
+    return got[:want], None
+
+
 def _grab_frames(args):
-    """Return a list of BGR frames to run detection on (live camera or stills)."""
+    """Return a list of BGR frames to run detection on.
+
+    ``--image`` -> a saved still; ``--source topic`` (default) -> subscribe to the
+    camera_publisher feed; ``--source device`` -> open the C920 directly (only
+    works when no camera_publisher owns the device).
+    """
     if args.image:
         import cv2
 
@@ -127,7 +177,10 @@ def _grab_frames(args):
             return [], f"could not read --image {args.image!r}"
         return [img], None
 
-    # Live camera path: import the GStreamer grabber lazily (its module imports
+    if args.source == "topic":
+        return _grab_frames_topic(args)
+
+    # Direct-device path: import the GStreamer grabber lazily (its module imports
     # rclpy at module load, which we only want inside the container/live run).
     from robo67_insertion.nodes.socket_detector_node import grab_frame_gst
 
@@ -200,6 +253,7 @@ def build_insertion_args(args, socket_xyz):
     ns.v_max = args.v_max
     ns.standoff = args.standoff
     ns.pos_stiff = args.pos_stiff
+    ns.approach_tol = args.approach_tol
     ns.contact_fz = args.contact_fz
     ns.press_force = args.press_force
     ns.insert_press = args.insert_press
@@ -208,8 +262,18 @@ def build_insertion_args(args, socket_xyz):
     ns.spiral_max_radius = args.spiral_max_radius
 
     ns.f_abort = args.f_abort
+    ns.torque_abort = args.torque_abort
     ns.watchdog_s = args.watchdog_s
     ns.workspace_aabb = list(args.workspace_aabb)
+
+    # release-on-insert: open the gripper to leave the peg in the hole on the
+    # z-drop (avoids the sustained seating push that crashes the bringup).
+    ns.release_on_insert = args.release_on_insert
+    ns.insert_drop_trigger = args.insert_drop_trigger
+    ns.gripper_ns = args.gripper_ns
+    ns.gripper_open_width = args.gripper_open_width
+    ns.gripper_speed = args.gripper_speed
+    ns.retract_after = args.retract_after
     return ns
 
 
@@ -344,9 +408,17 @@ def build_parser():
                     help="robo67 config (used for the C920 device number)")
     ap.add_argument("--image", default="",
                     help="detect on this still image instead of the live C920")
+    ap.add_argument("--source", choices=["topic", "device"], default="topic",
+                    help="topic (default) = subscribe to the camera_publisher feed (no device "
+                         "contention); device = open the C920 directly (needs the device free)")
+    ap.add_argument("--camera-topic",
+                    default="/robo67/camera/overhead/image_raw/compressed",
+                    help="overhead camera CompressedImage topic to subscribe to (--source topic)")
+    ap.add_argument("--camera-timeout", type=float, default=6.0,
+                    help="seconds to wait for frames on --camera-topic before giving up")
     ap.add_argument("--c920-device", type=str, default=None,
                     help="overhead C920 device: a by-id symlink/path or a bare "
-                         "/dev/video index (default: from config)")
+                         "/dev/video index (default: from config; used only by --source device)")
     ap.add_argument("--detector", choices=["cube", "white", "dark"], default="cube",
                     help="cube = white cube centroid (default; matches the socket-proxy "
                          "calibration); white = bore detector; dark = legacy dark-hole")
@@ -381,7 +453,9 @@ def build_parser():
     ap.add_argument("--v-max", type=float, default=0.03, help="command speed cap (m/s)")
     ap.add_argument("--standoff", type=float, default=0.05)
     ap.add_argument("--pos-stiff", type=float, default=200.0,
-                    help="MUST match the controller's pos_stiff")
+                    help="MUST match the controller's pos_stiff (real controller is 2000)")
+    ap.add_argument("--approach-tol", type=float, default=0.006,
+                    help="MOVE_ABOVE 'arrived' tol (m); set >= the controller stiction deadband")
     ap.add_argument("--contact-fz", type=float, default=4.0)
     ap.add_argument("--press-force", type=float, default=3.0)
     ap.add_argument("--insert-press", type=float, default=6.0)
@@ -390,10 +464,22 @@ def build_parser():
     ap.add_argument("--spiral-max-radius", type=float, default=0.012)
 
     ap.add_argument("--f-abort", type=float, default=20.0)
+    ap.add_argument("--torque-abort", type=float, default=5.0,
+                    help="abort cap on each moment axis (Nm); raise for a lateral spiral search")
     ap.add_argument("--watchdog-s", type=float, default=0.25)
     ap.add_argument("--workspace-aabb", type=float, nargs=6,
                     default=[0.20, 0.65, -0.40, 0.40, 0.02, 0.60],
                     help="xmin xmax ymin ymax zmin zmax (m)")
+
+    # release-on-insert (open gripper on the bore z-drop, then retract empty)
+    ap.add_argument("--release-on-insert", action="store_true",
+                    help="open the gripper to leave the peg in the hole on insertion")
+    ap.add_argument("--insert-drop-trigger", type=float, default=0.004,
+                    help="release when EE z drops this far (m) below the DESCEND contact_z hole-top")
+    ap.add_argument("--gripper-ns", default="/panda_gripper")
+    ap.add_argument("--gripper-open-width", type=float, default=0.08)
+    ap.add_argument("--gripper-speed", type=float, default=0.1)
+    ap.add_argument("--retract-after", type=float, default=0.06)
     return ap
 
 

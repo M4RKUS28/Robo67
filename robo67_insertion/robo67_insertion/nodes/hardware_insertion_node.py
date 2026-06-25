@@ -638,6 +638,26 @@ def run_ros(args):
             ee = node.ee
             fz = float(node.wrench[2])
 
+            # DIRECT release trigger (more robust than the FSM's rate-based z-drop):
+            # DESCEND_TO_CONTACT records the hole-top in contact_z; the moment the
+            # EE sits even a few mm BELOW that during the search, the peg has
+            # dropped into the bore -> release it and retract. Catches a gradual
+            # entry the rate threshold misses.
+            cz = adapter.module.contact_z
+            if (args.release_on_insert and phase in ("SEARCH_SPIRAL", "PUSH_INSERT")
+                    and cz is not None
+                    and float(ee[2]) < float(cz) - args.insert_drop_trigger):
+                node.get_logger().info(
+                    f"INSERTION DETECTED (ee_z={ee[2]:.4f} < hole-top {cz:.4f} - "
+                    f"{args.insert_drop_trigger:.3f}) -> releasing peg")
+                emit_tel(phase, cmd, ee, fz, float(node.wrench[2]), t, done=True, force=True)
+                if not args.dry_run:
+                    _open_gripper()
+                    _retract_up()
+                node.get_logger().info(
+                    "release-on-insert complete: peg left in hole, arm retracted.")
+                break
+
             outcome = contact.observe(
                 "free_space" if phase == "MOVE_ABOVE" else "confirm", fz)
 
@@ -787,8 +807,11 @@ def build_parser():
     # seating force that trips the firmware reflex / crashes the bringup), then
     # retract empty. Requires the franka_gripper node (launch gripper.launch.py).
     ap.add_argument("--release-on-insert", action="store_true",
-                    help="on the SEARCH_SPIRAL->PUSH_INSERT drop, open the gripper to release "
-                         "the peg into the hole, then retract (skip the seating push)")
+                    help="on insertion (EE drops below the DESCEND contact_z hole-top), open the "
+                         "gripper to release the peg into the hole, then retract (skip seating push)")
+    ap.add_argument("--insert-drop-trigger", type=float, default=0.004,
+                    help="release when EE z drops this far (m) below the recorded hole-top "
+                         "(contact_z); small = fires as soon as the peg dips into the bore")
     ap.add_argument("--gripper-ns", default="/panda_gripper",
                     help="franka_gripper action namespace (Move action at <ns>/move)")
     ap.add_argument("--gripper-open-width", type=float, default=0.08,
