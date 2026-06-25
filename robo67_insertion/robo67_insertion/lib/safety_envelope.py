@@ -123,10 +123,14 @@ class ImpedanceSafetyProfile:
         max_step_m: Maximum per-cycle Euclidean step on the COMMAND
             (``v_max / rate``); a true command-velocity limit.
         f_abort_n: Absolute abort cap applied to Fx, Fy and Fz
-            (``[f_abort, f_abort, f_abort, 5, 5, 5]``).
+            (``[f_abort, f_abort, f_abort, m, m, m]``).
         socket_top_z: Resolved socket TOP z in the base frame (m).
         max_press_depth_m: How far below the socket top the commanded
             equilibrium may go.
+        moment_cap_n: Absolute abort cap on each moment axis (Mx, My, Mz).
+            Defaults to the shared 5 Nm; raise it when a heavier tool /
+            unmodelled peg-weight torque offset eats into the margin and a
+            lateral search (spiral) needs more headroom.
     """
 
     workspace_aabb: Sequence[Sequence[float]]
@@ -134,6 +138,7 @@ class ImpedanceSafetyProfile:
     f_abort_n: float
     socket_top_z: float
     max_press_depth_m: float
+    moment_cap_n: float = _MOMENT_CAPS[0]
 
     @property
     def aabb(self) -> np.ndarray:
@@ -149,7 +154,8 @@ class ImpedanceSafetyProfile:
     @property
     def caps6(self) -> Tuple[float, ...]:
         f = float(self.f_abort_n)
-        return (f, f, f) + _MOMENT_CAPS
+        m = float(self.moment_cap_n)
+        return (f, f, f, m, m, m)
 
     def anchor(self, data: SafetyInput) -> Sequence[float]:
         """Step clamp is anchored on the previous command (ratcheting)."""

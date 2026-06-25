@@ -112,16 +112,18 @@ STATES = tuple(p for p in PHASES if p != "IDLE")
 def build_intent_adapter(socket_xyz, *, pos_stiff=200.0, press_force_n=3.0,
                          insert_press_n=6.0, max_press_depth_m=0.05,
                          standoff_m=0.05, contact_fz_n=4.0, insert_depth_m=0.03,
-                         spiral_max_radius_m=0.012, R=None):
+                         spiral_max_radius_m=0.012, approach_tol_m=0.006, R=None):
     """Construct the impedance command-path adapter with real-arm defaults.
 
     Canonical (controller-agnostic) params carry the hardware tunings that
     historically lived in ``InsertionParams``; controller quirks (stiffness,
-    press forces, held R) are the adapter's own.
+    press forces, held R) are the adapter's own. ``approach_tol_m`` should be set
+    >= the controller's free-space stiction deadband, else MOVE_ABOVE can never
+    declare "arrived" and the FSM stalls before it can descend/search.
     """
     params = IntentParams(
         standoff_m=standoff_m,
-        approach_tol_m=0.006,
+        approach_tol_m=approach_tol_m,
         contact_fz_threshold_n=contact_fz_n,
         insert_depth_m=insert_depth_m,
         z_drop_threshold_m=0.004,
@@ -380,7 +382,8 @@ def run_ros(args):
         ErrorRecovery = None
 
     aabb = np.array(args.workspace_aabb, float).reshape(3, 2)
-    caps = [args.f_abort, args.f_abort, args.f_abort, 5.0, 5.0, 5.0]
+    caps = [args.f_abort, args.f_abort, args.f_abort,
+            args.torque_abort, args.torque_abort, args.torque_abort]
     max_step = args.v_max / args.rate
 
     class Node_(Node):
@@ -485,7 +488,7 @@ def run_ros(args):
         insert_press_n=args.insert_press, max_press_depth_m=args.max_press_depth,
         standoff_m=args.standoff, contact_fz_n=args.contact_fz,
         insert_depth_m=args.insert_depth, spiral_max_radius_m=args.spiral_max_radius,
-        R=node.R,
+        approach_tol_m=args.approach_tol, R=node.R,
     )
     node.get_logger().info(f"socket TOP center: {socket.tolist()}  "
                            f"(press_gap={adapter.press_gap_m*1000:.1f}mm, "
@@ -522,6 +525,7 @@ def run_ros(args):
             f_abort_n=args.f_abort,
             socket_top_z=float(socket[2]),
             max_press_depth_m=args.max_press_depth,
+            moment_cap_n=args.torque_abort,
         )
     )
 
@@ -704,6 +708,9 @@ def build_parser():
     ap.add_argument("--rate", type=float, default=100.0)
     ap.add_argument("--v-max", type=float, default=0.03, help="command speed cap (m/s)")
     ap.add_argument("--standoff", type=float, default=0.05)
+    ap.add_argument("--approach-tol", type=float, default=0.006,
+                    help="MOVE_ABOVE 'arrived' tolerance (m); set >= the controller's "
+                         "free-space stiction deadband or the FSM stalls before descending")
     ap.add_argument("--pos-stiff", type=float, default=200.0,
                     help="MUST match the controller's pos_stiff")
     ap.add_argument("--contact-fz", type=float, default=4.0)
@@ -715,6 +722,9 @@ def build_parser():
 
     # safety
     ap.add_argument("--f-abort", type=float, default=20.0)
+    ap.add_argument("--torque-abort", type=float, default=5.0,
+                    help="abort if |external torque| on any axis exceeds this (Nm); note a "
+                         "constant peg-weight/model offset (~few Nm) counts against it")
     ap.add_argument("--watchdog-s", type=float, default=0.25)
     ap.add_argument("--workspace-aabb", type=float, nargs=6,
                     default=[0.20, 0.65, -0.40, 0.40, 0.02, 0.60],
