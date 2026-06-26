@@ -187,13 +187,18 @@ class ImpedanceCommandPathAdapter:
     def __init__(self, socket_xyz, params: IntentParams = IntentParams(),
                  pos_stiff: float = 200.0, press_force_n: float = 3.0,
                  insert_press_n: float = 6.0, max_press_depth_m: float = 0.05,
-                 R=None):
+                 R=None, force_mode: bool = False):
         self.module = InsertionIntentModule(socket_xyz, params)
         self.pos_stiff = float(pos_stiff)
         self.press_force_n = float(press_force_n)
         self.insert_press_n = float(insert_press_n)
         self.max_press_depth_m = float(max_press_depth_m)
         self.R = np.array(_DEFAULT_R if R is None else R, dtype=float).reshape(3, 3)
+        # When True, SEARCH_SPIRAL/PUSH_INSERT emit the bare contact plane as z
+        # (no fixed gap); the node's AxialForceRegulator owns the axial z so a
+        # constant press is REGULATED (and reduced if it overshoots) instead of
+        # a fixed equilibrium that lets the force decay. ADR-0002.
+        self.force_mode = bool(force_mode)
 
     @property
     def press_gap_m(self) -> float:
@@ -217,9 +222,9 @@ class ImpedanceCommandPathAdapter:
                 # press an equilibrium below the surface to build contact force
                 goal = (sx, sy, sz - self.max_press_depth_m)
         elif phase == "SEARCH_SPIRAL" and cz is not None:
-            goal = (tx, ty, cz - self.press_gap_m)
+            goal = (tx, ty, cz if self.force_mode else cz - self.press_gap_m)
         elif phase == "PUSH_INSERT" and cz is not None:
-            goal = (tx, ty, cz - self.insert_gap_m)
+            goal = (tx, ty, cz if self.force_mode else cz - self.insert_gap_m)
         else:
             # MOVE_ABOVE / CONFIRM / RETRACT / DONE / ERROR pass through; these
             # canonical targets are already above-surface or hold positions.

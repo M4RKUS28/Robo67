@@ -65,6 +65,11 @@ from robo67_insertion.config_schema import (
 )
 from robo67_insertion.lib.command_path_adapters import ImpedanceCommandPathAdapter
 from robo67_insertion.lib.contact_lifecycle import ContactLifecycleModule
+from robo67_insertion.lib.force_regulator import AxialForceParams, AxialForceRegulator
+from robo67_insertion.lib.insertion_event import (
+    InsertionEventDetector,
+    InsertionEventParams,
+)
 from robo67_insertion.lib.insertion_intent import PHASES, IntentParams, IntentSensors
 from robo67_insertion.lib import safety
 from robo67_insertion.lib.safety_envelope import (
@@ -116,7 +121,8 @@ STATES = tuple(p for p in PHASES if p != "IDLE")
 def build_intent_adapter(socket_xyz, *, pos_stiff=200.0, press_force_n=3.0,
                          insert_press_n=6.0, max_press_depth_m=0.05,
                          standoff_m=0.05, contact_fz_n=4.0, insert_depth_m=0.03,
-                         spiral_max_radius_m=0.012, approach_tol_m=0.006, R=None):
+                         spiral_max_radius_m=0.012, approach_tol_m=0.006, R=None,
+                         force_mode=False):
     """Construct the impedance command-path adapter with real-arm defaults.
 
     Canonical (controller-agnostic) params carry the hardware tunings that
@@ -139,7 +145,34 @@ def build_intent_adapter(socket_xyz, *, pos_stiff=200.0, press_force_n=3.0,
     return ImpedanceCommandPathAdapter(
         socket_xyz, params, pos_stiff=pos_stiff, press_force_n=press_force_n,
         insert_press_n=insert_press_n, max_press_depth_m=max_press_depth_m, R=R,
+        force_mode=force_mode,
     )
+
+
+def build_force_control(args, adapter, socket_top_z):
+    """Build the (regulator, detector) for force mode, or (None, None) if off.
+
+    Shared by the offline self-test and the live ROS loop so they regulate the
+    axial press identically. The regulator self-limits the force around the
+    target -- under-pressed -> descend, over-pressed -> rise (force reduced) --
+    and the detector flags the slacken + confirmed descent that means the peg
+    entered the bore. See ADR-0002.
+    """
+    if not getattr(args, "force_mode", False):
+        return None, None
+    reg = AxialForceRegulator(
+        AxialForceParams(
+            pos_stiff=float(args.pos_stiff), k_adm=float(args.k_adm),
+            v_cap_mps=float(args.adm_v_cap),
+            max_press_depth_m=float(adapter.max_press_depth_m),
+            max_force_n=float(args.adm_max_force)),
+        socket_top_z=float(socket_top_z))
+    det = InsertionEventDetector(InsertionEventParams(
+        fz_filter_alpha=float(args.fz_filter_alpha),
+        slacken_frac=float(args.slacken_frac),
+        confirm_drop_m=float(args.confirm_drop),
+        confirm_window_s=float(args.confirm_window)))
+    return reg, det
 
 
 # ---------------------------------------------------------------------------
@@ -149,10 +182,16 @@ def build_intent_adapter(socket_xyz, *, pos_stiff=200.0, press_force_n=3.0,
 # ---------------------------------------------------------------------------
 
 def selftest(args):
+    force_mode = getattr(args, "force_mode", False)
     socket = np.array([0.45, 0.0, 0.10])
-    adapter = build_intent_adapter(socket, pos_stiff=200.0)
+    adapter = build_intent_adapter(socket, pos_stiff=200.0, force_mode=force_mode)
     pos_stiff = adapter.pos_stiff
     insert_depth_m = adapter.module.params.insert_depth_m
+    # force-guided seams (None,None unless --force-mode). pos_stiff in --selftest
+    # is fixed at 200; mirror it onto args so the regulator math matches the plant.
+    if force_mode:
+        args.pos_stiff = pos_stiff
+    reg, det = build_force_control(args, adapter, float(socket[2]))
 
     rate = 100.0
     dt = 1.0 / rate
@@ -200,6 +239,11 @@ def selftest(args):
     error = None
     t = 0.0
     n = 0
+    # force-mode bookkeeping
+    inserted_fired = False
+    max_press = 0.0
+    seeded = False
+    t_search0 = None
     while n < 200000:
         # fake force: how far the equilibrium is pushed past where the ee can go
         in_hole = (math.hypot(ee[0] - hole_xy[0], ee[1] - hole_xy[1]) <= hole_r)
@@ -214,6 +258,29 @@ def selftest(args):
         out = adapter.step(phase, s)
         goal = np.asarray(out.goal_xyz, float)
         seen.add(phase)
+
+        # FORCE MODE: replace the adapter's axial z (the bare contact plane) with
+        # the regulated equilibrium so a constant gentle press is held -- chasing
+        # the peg DOWN when it slackens and easing UP if the force overshoots --
+        # and watch for the slacken + confirmed descent that means it entered.
+        if reg is not None and phase in ("SEARCH_SPIRAL", "PUSH_INSERT"):
+            press = abs(fz - outcome.baseline_fz)
+            max_press = max(max_press, press)
+            if not seeded:                       # no-jump handoff from DESCEND
+                z_prev = reg.seed(float(ee[2]), press)
+                seeded = True
+                t_search0 = t
+            else:
+                z_prev = float(cmd[2])
+            if phase == "SEARCH_SPIRAL":         # ramp F* from contact force up
+                frac = min(1.0, (t - t_search0) / max(1e-6, args.ramp_s))
+                f_target = args.contact_fz + frac * (args.search_press - args.contact_fz)
+            else:
+                f_target = args.insert_press
+            zc = reg.step(z_prev, float(ee[2]), press, f_target, dt)
+            goal = np.array([goal[0], goal[1], zc])
+            ev = det.observe(press, float(ee[2]), descending=(zc < z_prev - 1e-9), t=t)
+            inserted_fired = inserted_fired or ev.inserted
 
         # safety envelope seam: workspace clamp (socket-top z-floor folded in),
         # then bound the COMMAND step from the PREVIOUS COMMAND (impedance
@@ -250,12 +317,20 @@ def selftest(args):
           and "CONFIRM" in seen
           and max_speed <= vmax + 1e-6
           and min_z >= z_floor - 1e-9)
+    if force_mode:
+        # the regulated press must stay bounded (well under the abort cap) AND
+        # the slacken+descent detector must have fired when the peg entered.
+        ok = ok and inserted_fired and (max_press <= 20.0 + 1e-6)
     print("=== hardware_insertion self-test ===")
+    print(f"force mode     : {force_mode}")
     print(f"states visited : {sorted(seen)}")
     print(f"final state    : {phase} (done={out.done}, err={error})")
     print(f"ticks          : {n}  ({t:.2f}s sim)")
     print(f"max cmd speed  : {max_speed:.4f} m/s (cap {vmax})")
     print(f"min ee z       : {min_z:.4f} m (floor {z_floor})")
+    if force_mode:
+        print(f"max press      : {max_press:.2f} N (target {args.search_press}/{args.insert_press})")
+        print(f"insertion det  : {inserted_fired}")
     print("RESULT         :", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 
@@ -492,11 +567,21 @@ def run_ros(args):
         insert_press_n=args.insert_press, max_press_depth_m=args.max_press_depth,
         standoff_m=args.standoff, contact_fz_n=args.contact_fz,
         insert_depth_m=args.insert_depth, spiral_max_radius_m=args.spiral_max_radius,
-        approach_tol_m=args.approach_tol, R=node.R,
+        approach_tol_m=args.approach_tol, R=node.R, force_mode=args.force_mode,
     )
     node.get_logger().info(f"socket TOP center: {socket.tolist()}  "
                            f"(press_gap={adapter.press_gap_m*1000:.1f}mm, "
                            f"insert_gap={adapter.insert_gap_m*1000:.1f}mm)")
+    # force-guided seams (None,None unless --force-mode). The regulator holds a
+    # constant gentle press during SEARCH/PUSH: under-pressed -> descend (push
+    # the peg in), over-pressed -> rise (reduce the force). The detector flags
+    # the slacken + confirmed descent that means the peg entered the bore.
+    reg, det = build_force_control(args, adapter, float(socket[2]))
+    if args.force_mode:
+        node.get_logger().info(
+            f"FORCE MODE on: search_press={args.search_press}N insert_press={args.insert_press}N "
+            f"k_adm={args.k_adm} v_cap={args.adm_v_cap} slacken_frac={args.slacken_frac} "
+            f"confirm_drop={args.confirm_drop*1000:.1f}mm")
 
     # sanity: socket must be inside workspace
     if not np.all((socket >= aabb[:, 0]) & (socket <= aabb[:, 1])):
@@ -544,6 +629,11 @@ def run_ros(args):
     dt = 1.0 / args.rate
     last_state = None
     aborted = False
+    # force-mode loop state (no-jump seed at the contact handoff; XY spiral freeze)
+    fm_seeded = False
+    fm_t_search0 = None
+    fm_freeze_until = 0.0
+    fm_frozen_xy = None
     t0 = time.time()
 
     # -- telemetry (logging) ---------------------------------------------
@@ -670,6 +760,49 @@ def run_ros(args):
             out = adapter.step(phase, s)
             goal = np.asarray(out.goal_xyz, float)
             st = phase
+
+            # FORCE MODE: replace the adapter's axial z (the bare contact plane)
+            # with a REGULATED equilibrium that holds a constant gentle press:
+            # under-pressed -> ratchet DOWN (push the peg in); over-pressed ->
+            # ratchet UP (reduce the force again). Detect insertion from the
+            # force-slacken + a confirmed descent; on insert, release (skip the
+            # sustained seating push that trips the firmware reflex). ADR-0002.
+            if reg is not None and phase in ("SEARCH_SPIRAL", "PUSH_INSERT") and cz is not None:
+                press = abs(fz - outcome.baseline_fz)
+                if not fm_seeded:                     # no-jump handoff from DESCEND
+                    z_prev = reg.seed(float(ee[2]), press)
+                    fm_seeded = True
+                    fm_t_search0 = t
+                else:
+                    z_prev = float(cmd[2])
+                if phase == "SEARCH_SPIRAL":           # ramp F* from contact force up
+                    frac = min(1.0, (t - fm_t_search0) / max(1e-6, args.ramp_s))
+                    f_target = args.contact_fz + frac * (args.search_press - args.contact_fz)
+                else:
+                    f_target = args.insert_press
+                zc = reg.step(z_prev, float(ee[2]), press, f_target, dt)
+                ev = det.observe(press, float(ee[2]), descending=(zc < z_prev - 1e-9), t=t)
+                gx, gy = float(goal[0]), float(goal[1])
+                if not args.no_spiral_freeze:          # let the axial pull-in settle
+                    if ev.slacken and t >= fm_freeze_until:
+                        fm_freeze_until = t + args.settle_s
+                        fm_frozen_xy = (float(cmd[0]), float(cmd[1]))
+                    if fm_frozen_xy is not None and t < fm_freeze_until:
+                        gx, gy = fm_frozen_xy
+                    elif t >= fm_freeze_until:
+                        fm_frozen_xy = None
+                goal = np.array([gx, gy, zc])
+                if ev.inserted and args.release_on_insert:
+                    node.get_logger().info(
+                        f"INSERTION DETECTED (force-slacken+descent, "
+                        f"press_filt={ev.press_filt_n:.2f}N) -> releasing peg")
+                    emit_tel(st, cmd, ee, fz, outcome.baseline_fz, t, done=True, force=True)
+                    if not args.dry_run:
+                        _open_gripper()
+                        _retract_up()
+                    node.get_logger().info(
+                        "release-on-insert complete: peg left in hole, arm retracted.")
+                    break
 
             # safety envelope seam: workspace clamp (socket-top z-floor folded
             # in -- never command an equilibrium more than max_press_depth below
@@ -805,6 +938,36 @@ def build_parser():
     ap.add_argument("--max-press-depth", type=float, default=0.05)
     ap.add_argument("--insert-depth", type=float, default=0.03)
     ap.add_argument("--spiral-max-radius", type=float, default=0.012)
+
+    # force-guided (admittance) search/seat (ADR-0002). Off by default = current
+    # verified fixed-equilibrium behavior. When on, SEARCH_SPIRAL/PUSH_INSERT
+    # regulate a constant gentle press: under-pressed -> descend to push the peg
+    # in; over-pressed -> back the equilibrium up so the force is REDUCED again.
+    # Insertion is detected from the force-slacken + a confirmed descent.
+    ap.add_argument("--force-mode", action="store_true",
+                    help="regulate a constant gentle axial press (admittance) during "
+                         "SEARCH_SPIRAL/PUSH_INSERT and detect insertion from the force-slacken")
+    ap.add_argument("--search-press", type=float, default=5.0,
+                    help="F* press-force target (N) in force mode")
+    ap.add_argument("--k-adm", type=float, default=0.0008, help="admittance gain (m/s per N)")
+    ap.add_argument("--adm-v-cap", type=float, default=0.01,
+                    help="axial equilibrium speed cap (m/s); keep <= --v-max")
+    ap.add_argument("--adm-max-force", type=float, default=12.0,
+                    help="soft clamp on the regulated force target (N)")
+    ap.add_argument("--ramp-s", type=float, default=0.5,
+                    help="ramp F* from the contact force up to --search-press over this many s")
+    ap.add_argument("--fz-filter-alpha", type=float, default=0.2,
+                    help="EMA smoothing of the press estimate for slacken detection")
+    ap.add_argument("--slacken-frac", type=float, default=0.4,
+                    help="fraction of the held press lost that counts as a slacken")
+    ap.add_argument("--confirm-drop", type=float, default=0.003,
+                    help="EE descent (m) after a slacken needed to confirm insertion")
+    ap.add_argument("--confirm-window", type=float, default=1.0,
+                    help="seconds after a slacken within which the descent must confirm")
+    ap.add_argument("--no-spiral-freeze", action="store_true",
+                    help="do NOT freeze the XY spiral while a slacken is being confirmed")
+    ap.add_argument("--settle-s", type=float, default=0.4,
+                    help="seconds to hold the XY spiral after a slacken (if not --no-spiral-freeze)")
 
     # release-on-insert: the moment the search detects the drop into the bore,
     # open the gripper to LET GO of the peg (so the arm never builds the sustained

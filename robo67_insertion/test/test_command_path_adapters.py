@@ -226,6 +226,46 @@ class TestImpedanceAdapter:
         assert a.press_gap_m == pytest.approx(PRESS_FORCE_N / POS_STIFF)
         assert a.insert_gap_m == pytest.approx(INSERT_PRESS_N / POS_STIFF)
 
+    def test_force_mode_search_and_push_emit_contact_plane_z(self):
+        # In force_mode the adapter yields the canonical XY but the bare contact
+        # plane as z (no fixed gap) -- the node's AxialForceRegulator owns z.
+        a = ImpedanceCommandPathAdapter(
+            SOCKET, IntentParams(), pos_stiff=POS_STIFF,
+            press_force_n=PRESS_FORCE_N, insert_press_n=INSERT_PRESS_N,
+            force_mode=True,
+        )
+        phase = "MOVE_ABOVE"
+        seen_search = seen_push = 0
+        for s in sensor_sequence():
+            cmd = a.step(phase, s)
+            cz = a.module.contact_z
+            if phase == "SEARCH_SPIRAL" and cz is not None:
+                seen_search += 1
+                assert cmd.goal_xyz[2] == pytest.approx(cz)   # contact plane, no gap
+            if phase == "PUSH_INSERT" and cz is not None:
+                seen_push += 1
+                assert cmd.goal_xyz[2] == pytest.approx(cz)
+            phase = cmd.next_phase
+        assert seen_search >= 1 and seen_push >= 1
+
+    def test_force_mode_preserves_phase_sequence(self):
+        # force_mode must NOT change canonical transitions (ADR-0001).
+        base = ImpedanceCommandPathAdapter(
+            SOCKET, IntentParams(), pos_stiff=POS_STIFF,
+            press_force_n=PRESS_FORCE_N, insert_press_n=INSERT_PRESS_N,
+            force_mode=False,
+        )
+        forced = ImpedanceCommandPathAdapter(
+            SOCKET, IntentParams(), pos_stiff=POS_STIFF,
+            press_force_n=PRESS_FORCE_N, insert_press_n=INSERT_PRESS_N,
+            force_mode=True,
+        )
+        pb, pf = "MOVE_ABOVE", "MOVE_ABOVE"
+        for s in sensor_sequence():
+            ob, of = base.step(pb, s), forced.step(pf, s)
+            assert ob.next_phase == of.next_phase
+            pb, pf = ob.next_phase, of.next_phase
+
     def test_pose_desired_never_zero_px_or_r22(self):
         # socket at x=0 and a degenerate R with R22=0 -> the adapter MUST still
         # emit a non-zero px and non-zero R22 (controller quirk).

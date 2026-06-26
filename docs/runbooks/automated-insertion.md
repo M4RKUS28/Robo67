@@ -311,3 +311,52 @@ combined recovery action: **Relaunch & restart insertion**.
   fails/times out it stops there, surfaces the error, and offers **Retry** (it
   does NOT blindly restart insertion onto a still-broken arm). **Dismiss** / ✕
   closes it. Live mode only (no run ⇒ no popup).
+
+---
+
+## 8. Force-guided mode (`--force-mode`, experimental — ADR-0002)
+
+**What it changes.** Instead of a *fixed* below-surface equilibrium during
+SEARCH_SPIRAL/PUSH_INSERT (constant force only while the peg is blocked, then
+the force *decays* as it sinks), `--force-mode` **regulates** a constant gentle
+axial press with an admittance loop (`lib/force_regulator.py`):
+
+- under-pressed → the equilibrium ratchets **down**, actively pushing the peg in
+  as resistance slackens (fixes "doesn't go deeper at the right spot");
+- **over-pressed → the equilibrium ratchets back up so the force is reduced
+  again** (self-limits around the target, well under the firmware reflex);
+- insertion is detected from the **force-slacken + a confirmed descent**
+  (`lib/insertion_event.py`), not the fragile absolute z-drop, then
+  `--release-on-insert` fires as usual;
+- the contact handoff is **seeded** (no equilibrium jump) to kill the contact bounce.
+
+Off by default ⇒ the verified fixed-equilibrium behavior in §1 is unchanged.
+
+**Design + rationale:** [`docs/adr/0002-force-guided-search-and-insertion.md`](../adr/0002-force-guided-search-and-insertion.md),
+[`docs/architecture/force-guided-insertion-2026-06-26.md`](../architecture/force-guided-insertion-2026-06-26.md).
+
+**Flags (in addition to §1):**
+
+| Flag | Default | Why |
+|------|---------|-----|
+| `--force-mode` | off | enable the regulated press + force-slacken detection |
+| `--search-press` | 5 | F* press target (N) during the spiral. Keep gentle. With `pos_stiff 2000` this is what the peg feels, NOT the fixed-gap `--press-force`. |
+| `--insert-press` | 6 | F* during PUSH (usually not reached — we release on slacken) |
+| `--k-adm` | 0.0008 | admittance gain (m/s per N). Higher = chases/backs-off faster. |
+| `--adm-v-cap` | 0.01 | axial equilibrium speed cap (m/s); keep ≤ `--v-max` |
+| `--adm-max-force` | 12 | soft clamp on the regulated force target |
+| `--slacken-frac` | 0.4 | fraction of the held press lost that counts as a slacken |
+| `--confirm-drop` | 0.003 | EE descent (m) after a slacken needed to confirm insertion |
+| `--no-spiral-freeze` / `--settle-s` | freeze on, 0.4 s | hold the XY spiral briefly after a slacken so the axial pull-in can seat the peg |
+
+**Bring-up order (mandatory).**
+
+1. Host gate (no robot): `python3 -m robo67_insertion.nodes.hardware_insertion_node --selftest --force-mode` → must print `RESULT: PASS`, `insertion det: True`, and a bounded `max press`.
+2. Real arm `--dry-run` first (reads state, logs the regulated `cmd_z`/press, publishes NOTHING): add `--force-mode --dry-run` to the §1 command.
+3. Guarded live run, human on the e-stop: add `--force-mode` to the §1 command (keep `--release-on-insert`).
+
+**Recovery notes are unchanged (§5).** `--release-on-insert` still fires on the
+insertion event, so the arm never enters the sustained seating push; the
+firmware force/torque reflex remains the hard, undisable-able guardrail. If a
+jam still trips it, recover via `/panda_error_recovery_service_server/error_recovery`
+and relaunch as in §5.
