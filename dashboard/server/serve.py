@@ -113,18 +113,22 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         try:
             # read any request body (most actions need none; insertion start
-            # accepts an optional {"force_mode": bool})
+            # accepts an optional {"force_mode": bool, "insertion_mode": "peg"|"cable"})
             n = int(self.headers.get("Content-Length", 0) or 0)
             raw = self.rfile.read(n) if n else b""
             if path == "/api/insertion/start":
                 force_mode = False
+                insertion_mode = "peg"
                 if raw:
                     try:
-                        force_mode = bool(json.loads(raw.decode("utf-8") or "{}")
-                                          .get("force_mode", False))
+                        body = json.loads(raw.decode("utf-8") or "{}")
+                        force_mode = bool(body.get("force_mode", False))
+                        m = str(body.get("insertion_mode", "peg")).lower()
+                        insertion_mode = "cable" if m == "cable" else "peg"
                     except Exception:  # noqa: BLE001
                         force_mode = False
-                return self._send_json(self._insertion().start(force_mode=force_mode))
+                        insertion_mode = "peg"
+                return self._send_json(self._insertion().start(mode=insertion_mode, force_mode=force_mode))
             if path == "/api/insertion/stop":
                 return self._send_json(self._insertion().stop())
             if path == "/api/bringup/relaunch":

@@ -328,6 +328,12 @@ function InsertionRow() {
           inserting{elapsed(st?.elapsed_s)}
         </BusyPill>
         <div
+          className="flex items-center gap-1.5 whitespace-nowrap rounded-md bg-indigo-500/15 px-3 py-2 text-xs font-medium text-indigo-200"
+          title="Insertion mode"
+        >
+          {st?.mode === "cable" ? "cable" : "peg"}
+        </div>
+        <div
           className={clsx(
             "flex items-center gap-1.5 whitespace-nowrap rounded-md px-3 py-2 text-xs font-medium",
             runningForce ? "bg-sky-500/15 text-sky-300" : "bg-slate-500/15 text-slate-400",
@@ -355,7 +361,7 @@ function InsertionRow() {
   if (insertion.confirm) {
     return (
       <ConfirmRow
-        question={`Move the real arm? (${insertion.forceMode ? "force mode" : "fixed mode"})`}
+        question={`Move the real arm? (${insertion.insertionMode}, ${insertion.forceMode ? "force mode" : "fixed mode"})`}
         confirmTone="emerald"
         onConfirm={insertion.start}
         onCancel={insertion.cancel}
@@ -365,6 +371,28 @@ function InsertionRow() {
   }
   return (
     <>
+      <div className="flex items-center overflow-hidden rounded-md border border-ink-700/60">
+        {(["peg", "cable"] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => insertion.setInsertionMode(m)}
+            aria-pressed={insertion.insertionMode === m}
+            className={clsx(
+              "px-3 py-2 text-xs font-medium transition-colors",
+              insertion.insertionMode === m
+                ? "bg-indigo-500/25 text-indigo-200"
+                : "bg-ink-800 text-slate-400 hover:bg-ink-700",
+            )}
+            title={
+              m === "cable"
+                ? "Cable insertion: perceive the I/O box, move above, seat the connector (force-guided)"
+                : "Peg-in-hole insertion"
+            }
+          >
+            {m === "peg" ? "Peg" : "Cable"}
+          </button>
+        ))}
+      </div>
       <button
         onClick={() => insertion.setForceMode(!insertion.forceMode)}
         aria-pressed={insertion.forceMode}

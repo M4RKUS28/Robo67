@@ -124,6 +124,8 @@ interface GripperControls extends SubsystemBase<GripperStatus> {
 interface InsertionControls extends SubsystemBase<InsertionStatus> {
   forceMode: boolean;
   setForceMode: (v: boolean) => void;
+  insertionMode: "peg" | "cable";
+  setInsertionMode: (v: "peg" | "cable") => void;
   start: () => void;
   stop: () => void;
 }
@@ -167,6 +169,8 @@ export function ControlsProvider({ children }: { children: ReactNode }) {
   // behavior, so both the dock toggle and the relaunch+restart recovery start
   // with force on (the user can still turn it off before a run).
   const [forceMode, setForceMode] = useState(true);
+  // Insertion target: peg-in-hole (default) or cable connector into the I/O box.
+  const [insertionMode, setInsertionMode] = useState<"peg" | "cable">("peg");
 
   const fciActive = fciStatus?.fci_active ?? null;
   const willDeactivate = fciActive === true;
@@ -254,12 +258,14 @@ export function ControlsProvider({ children }: { children: ReactNode }) {
       status: insertionStatus,
       forceMode,
       setForceMode,
+      insertionMode,
+      setInsertionMode,
       confirm: insertionR.confirm,
       inFlight: insertionR.inFlight,
       err: insertionR.err,
       askConfirm: insertionR.askConfirm,
       cancel: insertionR.cancel,
-      start: () => insertionR.run(() => startInsertion(forceMode)),
+      start: () => insertionR.run(() => startInsertion(forceMode, insertionMode)),
       stop: () => insertionR.run(() => stopInsertion()),
     },
     errors,

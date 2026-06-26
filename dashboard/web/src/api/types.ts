@@ -97,6 +97,7 @@ export interface InsertionStatus {
   enabled: boolean; // true only in live mode
   running: boolean;
   force_mode?: boolean; // current/last run used --force-mode (admittance press)
+  mode?: "peg" | "cable"; // current/last run's insertion mode (peg-in-hole vs cable)
   pid: number | null;
   elapsed_s: number | null;
   last_exit: number | null;

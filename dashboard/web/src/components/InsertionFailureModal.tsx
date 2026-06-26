@@ -115,9 +115,11 @@ export function InsertionFailureModal() {
         return;
       }
       // relaunch verified (Move + gripper) -> start the insertion automatically,
-      // honoring the dock's force-mode toggle (defaults to force on).
+      // honoring the dock's force-mode toggle (defaults to force on) and the
+      // selected insertion mode (peg/cable), so both are preserved across the
+      // relaunch + restart.
       setStage("Starting insertion…");
-      const s = await startInsertion(insertion.forceMode);
+      const s = await startInsertion(insertion.forceMode, insertion.insertionMode);
       qc.invalidateQueries({ queryKey: ["insertion-status"] });
       if (!s.ok) {
         setErr(s.error ?? "insertion failed to start");

@@ -53,10 +53,11 @@ export function useInsertionStatus() {
   });
 }
 
-export function startInsertion(forceMode = false) {
+export type InsertionMode = "peg" | "cable";
+export function startInsertion(forceMode = false, mode: InsertionMode = "peg") {
   return postJSON<{ ok: boolean; error?: string; pid?: number }>(
     "/api/insertion/start",
-    { force_mode: forceMode },
+    { force_mode: forceMode, insertion_mode: mode },
   );
 }
 
