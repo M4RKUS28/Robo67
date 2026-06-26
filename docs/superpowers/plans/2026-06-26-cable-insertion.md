@@ -104,11 +104,16 @@ loop), the C920→base homography + its calibration tool.
 - [x] Save representative frame as a detector fixture (`test/fixtures/c920_io_box.jpg`).
 
 ### Phase 1 — Gray-box detector (overhead, pure, TDD) ✅
-- [x] `lib/box_detect.py`: `Box` dataclass + `BoxParams` + `detect_gray_box(bgr)`
-      (local-texture-energy detector — box body ≈ carpet brightness, so texture not
-      intensity is the discriminator).
-- [x] `test/test_box_detect.py`: synthetic busy rectangle + the real fixture; asserts
-      centroid within tolerance and rejection of uniform carpet; picks the busier blob.
+- [x] `lib/box_detect.py`: `Box` + `BoxParams` + `detect_gray_box(bgr)` (local-texture-energy
+      detector — box body ≈ carpet brightness, so texture not intensity discriminates).
+- [x] **Upgraded to object-SPECIFIC ORB template matching** (`OrbBoxMatcher` /
+      `detect_box_orb` + `BoxOrbParams`, reference `config/box_template.jpg`): the texture
+      heuristic only finds the "busiest blob", which the cluttered scene hijacked (white
+      retail box / teal package / knob box → wrong box, arm moved to wrong place). ORB+RANSAC
+      locks onto THIS box regardless of position/rotation and rejects all distractors
+      (~110+ inliers cross-pose); texture kept as fallback.
+- [x] `test/test_box_detect.py`: texture (synthetic + real fixture) AND ORB (reference frame,
+      moved frame, absent→empty, matcher reuse). All green.
 - [x] Overlay support: `draw_box_overlay` (oriented quad + centroid + base-XY label).
 - [x] Map box centroid → base XY through the existing C920 homography (`HomographyMappingAdapter`).
 
@@ -119,12 +124,15 @@ loop), the C920→base homography + its calibration tool.
 - [x] Live smoke test in `multipanda-container`: locks onto the I/O box, publishes
       `box_pose ≈ (0.466, -0.231, taught_z)`.
 
-### Phase 3 — MOVE_ABOVE the box 🔲 (selftest + dry-run done; LIVE move pending)
-- [x] `scripts/hw_cable_insertion_vision.py`: perceive box (overhead) → compute tool-down
-      target ~10 cm above box center → move via `hw_move_to.Mover` (ROS imports lazy so
-      `--selftest` runs offline). Offline `--selftest` PASS; live `--dry-run` PASS
-      (perceived base XY (0.467, -0.231), target (0.467, -0.231, 0.20), published nothing).
-- [ ] LIVE move-above on the real arm (needs FCI active, area clear, e-stop in hand).
+### Phase 3 — MOVE_ABOVE the box ✅
+- [x] `scripts/hw_cable_insertion_vision.py`: perceive box (overhead, ORB by default) →
+      compute tool-down target ~10 cm above box center → move via `hw_move_to.Mover` (ROS
+      imports lazy so `--selftest` runs offline). Offline `--selftest` PASS.
+- [x] LIVE move-above on the real arm (verified): ORB perceived the correct box (112
+      inliers, base (0.477, -0.275)); gentle ramp+settle, Fz 4-5 N, `mode 2` throughout,
+      `reached=True`, final EE (0.470, -0.267, 0.253) ≈ 10 cm above the box.
+      (First live attempt used the texture detector and moved to the WRONG box — that
+      motivated the ORB upgrade in Phase 1.)
 
 ### Phase 4 — D405 hand-eye calibration (NEW)
 - [ ] `lib/handeye.py`: pure `cv2.calibrateHandEye` wrapper + ChArUco/checkerboard board

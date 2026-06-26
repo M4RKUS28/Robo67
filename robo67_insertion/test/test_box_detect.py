@@ -14,11 +14,15 @@ import numpy as np
 from robo67_insertion.lib.box_detect import (
     Box,
     BoxParams,
+    BoxOrbParams,
+    OrbBoxMatcher,
+    detect_box_orb,
     detect_gray_box,
     local_texture_std,
 )
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
+TEMPLATE = os.path.join(os.path.dirname(__file__), "..", "config", "box_template.jpg")
 
 
 def _low_texture_bg(h=720, w=1280, level=116, noise=4, seed=0):
@@ -95,3 +99,47 @@ def test_real_overhead_frame_locates_io_box():
     # its texture-blob centroid was measured at ~(679, 580) on this frame.
     assert abs(top.u - 679) < 90, f"u={top.u}"
     assert abs(top.v - 580) < 90, f"v={top.v}"
+
+
+# -- ORB template matching (object-specific detection) ----------------------
+
+def _template():
+    t = cv2.imread(TEMPLATE)
+    assert t is not None, f"missing template {TEMPLATE}"
+    return t
+
+
+def test_orb_locates_box_in_reference_frame():
+    img = cv2.imread(os.path.join(FIXTURES, "c920_io_box.jpg"))
+    boxes = detect_box_orb(img, _template())
+    assert len(boxes) == 1, "expected exactly the matched box"
+    b = boxes[0]
+    # template was cropped around the box centred ~(676, 584) in this frame
+    assert abs(b.u - 676) < 60 and abs(b.v - 584) < 60, f"({b.u},{b.v})"
+    assert b.score >= 20  # plenty of RANSAC inliers
+    assert b.corners.shape == (4, 2)
+
+
+def test_orb_locates_box_in_moved_frame():
+    img = cv2.imread(os.path.join(FIXTURES, "c920_io_box_moved.jpg"))
+    assert img is not None
+    boxes = detect_box_orb(img, _template())
+    assert len(boxes) == 1, "ORB should find the box despite the changed pose/clutter"
+    b = boxes[0]
+    # in this frame the box sits center-left (projected centroid ~ (433, 520))
+    assert abs(b.u - 460) < 130 and abs(b.v - 520) < 130, f"({b.u},{b.v})"
+    assert b.score >= 20
+
+
+def test_orb_absent_box_returns_empty():
+    blank = np.full((720, 1280, 3), 116, np.uint8)  # featureless carpet -> no match
+    assert detect_box_orb(blank, _template()) == []
+
+
+def test_orb_matcher_reused_across_frames():
+    matcher = OrbBoxMatcher(_template(), BoxOrbParams())
+    a = matcher.detect(cv2.imread(os.path.join(FIXTURES, "c920_io_box.jpg")))
+    b = matcher.detect(cv2.imread(os.path.join(FIXTURES, "c920_io_box_moved.jpg")))
+    assert len(a) == 1 and len(b) == 1
+    # different box positions across the two frames
+    assert abs(a[0].u - b[0].u) > 100 or abs(a[0].v - b[0].v) > 100

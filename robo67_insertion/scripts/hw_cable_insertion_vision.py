@@ -60,7 +60,12 @@ import numpy as np  # noqa: E402
 
 # Pure (numpy/cv2/stdlib -- NO rclpy at import). rclpy/the Mover are imported
 # lazily inside run_live so --selftest stays ROS-free.
-from robo67_insertion.lib.box_detect import BoxParams, detect_gray_box  # noqa: E402
+from robo67_insertion.lib.box_detect import (  # noqa: E402
+    BoxOrbParams,
+    BoxParams,
+    OrbBoxMatcher,
+    detect_gray_box,
+)
 from robo67_insertion.lib.pixel_mapping import (  # noqa: E402
     HomographyMappingAdapter,
     MappingContext,
@@ -73,6 +78,7 @@ from hw_peg_in_hole_vision import _grab_frames, load_mapper  # noqa: E402
 
 DEFAULT_HOMOGRAPHY = os.path.join(_PKG_ROOT, "config", "c920_homography.npz")
 DEFAULT_CONFIG = os.path.join(_PKG_ROOT, "config", "robo67.yaml")
+DEFAULT_TEMPLATE = os.path.join(_PKG_ROOT, "config", "box_template.jpg")
 
 
 # ---------------------------------------------------------------------------
@@ -80,9 +86,30 @@ DEFAULT_CONFIG = os.path.join(_PKG_ROOT, "config", "robo67.yaml")
 # ---------------------------------------------------------------------------
 
 def build_box_detector(args):
-    """Return a callable ``img -> list[Box]`` for the gray-box detector."""
-    params = BoxParams(min_texture_std=args.min_texture_std)
-    return lambda img: detect_gray_box(img, params)
+    """Return a callable ``img -> list[Box]`` for the chosen box detector.
+
+    ``orb`` (default) matches the stored reference TEMPLATE of this specific I/O
+    box (robust to clutter/position/rotation; rejects distractors). ``texture``
+    is the busiest-blob heuristic. With ORB, fall back to texture only if
+    ``--fallback-texture`` and ORB finds nothing.
+    """
+    tparams = BoxParams(min_texture_std=args.min_texture_std)
+    if args.method == "orb":
+        import cv2
+        tmpl = cv2.imread(args.template)
+        if tmpl is None:
+            print(f"WARNING: box template not found: {args.template} -- using texture detector",
+                  file=sys.stderr)
+            return lambda img: detect_gray_box(img, tparams)
+        matcher = OrbBoxMatcher(tmpl, BoxOrbParams(min_inliers=args.orb_min_inliers))
+
+        def _detect(img):
+            boxes = matcher.detect(img)
+            if boxes or not args.fallback_texture:
+                return boxes
+            return detect_gray_box(img, tparams)
+        return _detect
+    return lambda img: detect_gray_box(img, tparams)
 
 
 def perceive_box_xy(frames, mapper, detect_fn):
@@ -236,6 +263,9 @@ def selftest(args):
     cx, cy = 700, 560
     mapper = HomographyMappingAdapter(_demo_homography(cx, cy))
     img = _synthetic_box_image(cx, cy)
+    # The synthetic image is a generic texture blob, not the real box, so the
+    # offline pipeline check uses the texture detector regardless of --method.
+    args.method = "texture"
     base_xy, dets = perceive_box_xy([img] * 3, mapper, build_box_detector(args))
 
     ok = base_xy is not None and len(dets) == 3
@@ -289,8 +319,17 @@ def build_parser():
                     help="lock C920 manual exposure for --source device")
     ap.add_argument("--frames", type=int, default=5,
                     help="number of frames to fuse (per-axis median)")
+    ap.add_argument("--method", choices=["orb", "texture"], default="orb",
+                    help="orb (default) = match the stored box template (robust to clutter); "
+                         "texture = busiest-blob heuristic")
+    ap.add_argument("--template", default=DEFAULT_TEMPLATE,
+                    help="reference box template for --method orb")
+    ap.add_argument("--orb-min-inliers", type=int, default=BoxOrbParams.min_inliers,
+                    help="min RANSAC inliers to accept an ORB match (else box absent)")
+    ap.add_argument("--fallback-texture", action=argparse.BooleanOptionalAction, default=True,
+                    help="if ORB finds nothing, fall back to the texture detector")
     ap.add_argument("--min-texture-std", type=float, default=BoxParams.min_texture_std,
-                    help="box detector local-std threshold (busy port face vs carpet)")
+                    help="texture detector local-std threshold (busy port face vs carpet)")
     ap.add_argument("--box-top-z", type=float, default=None,
                     help="taught box-top Z in base frame (m); REQUIRED for a live/dry run")
     ap.add_argument("--approach-height", type=float, default=0.10,

@@ -40,7 +40,15 @@ import math
 import cv2
 import numpy as np
 
-__all__ = ["Box", "BoxParams", "local_texture_std", "detect_gray_box"]
+__all__ = [
+    "Box",
+    "BoxParams",
+    "local_texture_std",
+    "detect_gray_box",
+    "BoxOrbParams",
+    "OrbBoxMatcher",
+    "detect_box_orb",
+]
 
 
 @dataclass
@@ -191,3 +199,107 @@ def detect_gray_box(bgr: np.ndarray, params: BoxParams = BoxParams()) -> list[Bo
 
     candidates.sort(key=lambda bs: bs[1], reverse=True)
     return [b for b, _ in candidates]
+
+
+# ---------------------------------------------------------------------------
+# ORB template matching -- robust, object-SPECIFIC detection.
+#
+# The texture detector above keys on "busiest blob", which a cluttered scene
+# (white retail boxes, a teal package, a knob box) can hijack. To localize ONE
+# specific richly-textured object (this industrial I/O box) regardless of
+# position/rotation and reject every distractor, match ORB features against a
+# stored reference TEMPLATE crop of the box and fit a RANSAC homography. The
+# projected template outline + centroid give the box pose; the RANSAC inlier
+# count is the confidence (and the absent-box reject test).
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class BoxOrbParams:
+    """Tunable parameters for :class:`OrbBoxMatcher` / :func:`detect_box_orb`.
+
+    Attributes
+    ----------
+    n_features:
+        ORB feature budget per image.
+    ratio:
+        Lowe ratio-test threshold (keep a match if its best distance is below
+        ``ratio`` x the second-best).
+    ransac_reproj_px:
+        RANSAC reprojection tolerance (px) for the homography fit.
+    min_inliers:
+        Minimum RANSAC inliers to accept a detection. Below this the box is
+        considered absent (rejects empty/cluttered scenes that lack the box).
+    """
+
+    n_features: int = 2000
+    ratio: float = 0.75
+    ransac_reproj_px: float = 5.0
+    min_inliers: int = 20
+
+
+def _box_from_quad(quad: np.ndarray, score: float) -> Box:
+    """Build a :class:`Box` from a projected (4, 2) corner quad."""
+    rect = cv2.minAreaRect(quad.astype(np.float32))  # ((cx,cy),(w,h),angle)
+    (cx, cy), (rw, rh), angle = rect
+    return Box(u=float(cx), v=float(cy), width_px=float(rw), height_px=float(rh),
+               angle_deg=float(angle), score=float(score), corners=quad.astype(float))
+
+
+class OrbBoxMatcher:
+    """Match a stored reference template of the box into a scene via ORB+RANSAC.
+
+    The template's ORB features are computed ONCE at construction (so the node
+    can call :meth:`detect` per frame cheaply). :meth:`detect` returns a list
+    with a single :class:`Box` (the located box; ``score`` = inlier count and
+    ``corners`` = the projected template outline) or an empty list when the box
+    is absent / too few inliers.
+    """
+
+    def __init__(self, template_bgr: np.ndarray, params: BoxOrbParams = BoxOrbParams()):
+        self.params = params
+        self._orb = cv2.ORB_create(nfeatures=params.n_features)
+        self._bf = cv2.BFMatcher(cv2.NORM_HAMMING)
+        tgray = cv2.cvtColor(template_bgr, cv2.COLOR_BGR2GRAY)
+        self._th, self._tw = tgray.shape[:2]
+        self._kp_t, self._des_t = self._orb.detectAndCompute(tgray, None)
+        if self._des_t is None or len(self._kp_t) < params.min_inliers:
+            raise ValueError(
+                f"template has too few ORB features ({0 if self._des_t is None else len(self._kp_t)}); "
+                "use a larger/sharper reference crop")
+
+    def detect(self, bgr: np.ndarray) -> list[Box]:
+        p = self.params
+        gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+        kp_s, des_s = self._orb.detectAndCompute(gray, None)
+        if des_s is None or len(des_s) < 2:
+            return []
+        good = []
+        for pair in self._bf.knnMatch(self._des_t, des_s, k=2):
+            if len(pair) < 2:
+                continue
+            m, n = pair
+            if m.distance < p.ratio * n.distance:
+                good.append(m)
+        if len(good) < p.min_inliers:
+            return []
+        src = np.float32([self._kp_t[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
+        dst = np.float32([kp_s[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+        H, mask = cv2.findHomography(src, dst, cv2.RANSAC, p.ransac_reproj_px)
+        if H is None or mask is None:
+            return []
+        inliers = int(mask.sum())
+        if inliers < p.min_inliers:
+            return []
+        corners = np.float32([[0, 0], [self._tw, 0], [self._tw, self._th],
+                              [0, self._th]]).reshape(-1, 1, 2)
+        quad = cv2.perspectiveTransform(corners, H).reshape(-1, 2)
+        return [_box_from_quad(quad, float(inliers))]
+
+
+def detect_box_orb(bgr: np.ndarray, template_bgr: np.ndarray,
+                   params: BoxOrbParams = BoxOrbParams()) -> list[Box]:
+    """One-shot convenience: match ``template_bgr`` into ``bgr`` (see
+    :class:`OrbBoxMatcher`). For repeated calls build an :class:`OrbBoxMatcher`
+    once (it caches the template features) instead of calling this per frame."""
+    return OrbBoxMatcher(template_bgr, params).detect(bgr)

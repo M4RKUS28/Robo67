@@ -37,7 +37,12 @@ from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Float64MultiArray
 
 from robo67_insertion.config_schema import load_config
-from robo67_insertion.lib.box_detect import BoxParams, detect_gray_box
+from robo67_insertion.lib.box_detect import (
+    BoxOrbParams,
+    BoxParams,
+    OrbBoxMatcher,
+    detect_gray_box,
+)
 from robo67_insertion.lib.image_overlay import decode_jpeg, draw_box_overlay, encode_jpeg
 from robo67_insertion.lib.pixel_mapping import (
     HomographyMappingAdapter,
@@ -66,6 +71,13 @@ class BoxDetector(Node):
         self.declare_parameter("image_topic", "")    # "" -> topics.cam_overhead_raw
         self.declare_parameter("overlay_topic", "")  # "" -> topics.cam_overhead_overlay
         self.declare_parameter("min_texture_std", BoxParams.min_texture_std)
+        # detection method: "orb" (object-specific template match; robust to
+        # clutter -- DEFAULT) or "texture" (busiest-blob heuristic). With ORB,
+        # fall back to texture only if --fallback-texture and ORB finds nothing.
+        self.declare_parameter("method", "orb")
+        self.declare_parameter("template_path", "")  # "" -> config/box_template.jpg
+        self.declare_parameter("fallback_texture", True)
+        self.declare_parameter("orb_min_inliers", BoxOrbParams.min_inliers)
 
         cfg_path = self.get_parameter("config_path").value or _default_config_path()
         self.cfg = load_config(cfg_path)
@@ -84,6 +96,26 @@ class BoxDetector(Node):
         self.params = BoxParams(
             min_texture_std=float(self.get_parameter("min_texture_std").value))
         self._last_proc = 0.0
+
+        # detector: ORB template match (object-specific, default) + texture fallback
+        self.method = str(self.get_parameter("method").value).lower()
+        self.fallback_texture = bool(self.get_parameter("fallback_texture").value)
+        self.matcher = None
+        if self.method == "orb":
+            import cv2
+            tpath = self.get_parameter("template_path").value or os.path.join(
+                os.path.dirname(cfg_path), "box_template.jpg")
+            tmpl = cv2.imread(tpath)
+            if tmpl is None:
+                self.get_logger().warn(
+                    f"no box template at {tpath}; falling back to texture detector")
+                self.method = "texture"
+            else:
+                self.matcher = OrbBoxMatcher(tmpl, BoxOrbParams(
+                    min_inliers=int(self.get_parameter("orb_min_inliers").value)))
+                self.get_logger().info(
+                    f"ORB box matcher ready (template {tpath}, "
+                    f"min_inliers={self.matcher.params.min_inliers})")
 
         hpath = self.get_parameter("homography_path").value or os.path.join(
             os.path.dirname(cfg_path), "c920_homography.npz"
@@ -117,6 +149,14 @@ class BoxDetector(Node):
             f"min_texture_std={self.params.min_texture_std}, {self.rate} Hz) "
             f"-> pose {self.cfg.topics.box_pose}, overlay {self.overlay_topic}")
 
+    def _detect(self, img):
+        """ORB template match (object-specific) with optional texture fallback."""
+        if self.matcher is not None:
+            boxes = self.matcher.detect(img)
+            if boxes or not self.fallback_texture:
+                return boxes
+        return detect_gray_box(img, self.params)
+
     def _grab(self):
         import cv2
 
@@ -146,7 +186,7 @@ class BoxDetector(Node):
         self._process(img)
 
     def _process(self, img):
-        boxes = detect_gray_box(img, self.params)
+        boxes = self._detect(img)
         base_xy = None
         if boxes:
             b = boxes[0]
