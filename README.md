@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 # Robo67
 
 **EE26 Hackathon, Munich, June 2026.**
@@ -110,3 +111,12 @@ docs/
 ---
 
 _Named after the robot's IP address. We're not creative. We're engineers._
+=======
+#https://munichstart.notion.site/EE26-Hacker-Handbook-37e768068632809f9b84df427a5ca8c7
+
+https://192.168.1.67/desk/
+
+https://frankarobotics.github.io/docs/doc/franka_ros2_humble/franka_bringup/doc/index.html
+
+https://munichstart.notion.site/Intel-Industrial-Robotics-Arm-Challenge-37e768068632805b876edd037878fe12
+>>>>>>> Stashed changes
