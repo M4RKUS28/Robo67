@@ -25,6 +25,7 @@ setup(
     entry_points={
         'console_scripts': [
             'socket_detector = robo67_insertion.nodes.socket_detector_node:main',
+            'box_detector = robo67_insertion.nodes.box_detector_node:main',
             'calibration = robo67_insertion.nodes.calibration_node:main',
             'insertion_orchestrator = robo67_insertion.nodes.insertion_orchestrator_node:main',
             'd405_servo = robo67_insertion.nodes.d405_servo_node:main',

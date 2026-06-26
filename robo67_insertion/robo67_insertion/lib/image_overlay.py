@@ -19,10 +19,12 @@ from typing import Optional, Sequence, Tuple
 import cv2
 import numpy as np
 
+from robo67_insertion.lib.box_detect import Box
 from robo67_insertion.lib.hole_detect import Hole
 
 __all__ = [
     "draw_socket_overlay",
+    "draw_box_overlay",
     "draw_servo_overlay",
     "encode_jpeg",
     "decode_jpeg",
@@ -88,6 +90,50 @@ def draw_socket_overlay(
     if base_xy is not None:
         txt += f"  base ({base_xy[0]:+.3f}, {base_xy[1]:+.3f})"
     _put_label(out, txt, (u + r + 6, v - r - 6), color)
+    return out
+
+
+def draw_box_overlay(
+    bgr: np.ndarray,
+    boxes: Sequence[Box],
+    *,
+    color: Tuple[int, int, int] = _GREEN,
+    label: str = "io-box",
+    base_xy: Optional[Tuple[float, float]] = None,
+) -> np.ndarray:
+    """Annotate an overhead frame with the detected I/O box(es).
+
+    The best (first) box gets its oriented quad, a centre dot, a faint
+    full-frame crosshair through the centroid, and a text label (score, and the
+    mapped base XY when known). Any further boxes get a thin secondary quad.
+    Returns a new BGR image; the input is never mutated. An empty list returns
+    an unmodified copy (so the overlay feed never goes blank on a missed frame).
+    """
+    out = _as_bgr(bgr)
+    if not boxes:
+        return out
+    h, w = out.shape[:2]
+
+    # secondary detections first (so the primary draws on top)
+    for box in boxes[1:]:
+        pts = np.asarray(box.corners, dtype=np.int32).reshape(-1, 1, 2)
+        cv2.polylines(out, [pts], True, _FAINT, 1, cv2.LINE_AA)
+
+    best = boxes[0]
+    u, v = int(best.u), int(best.v)
+    pts = np.asarray(best.corners, dtype=np.int32).reshape(-1, 1, 2)
+    # faint full-frame crosshair through the centroid
+    cv2.line(out, (u, 0), (u, h), color, 1, cv2.LINE_AA)
+    cv2.line(out, (0, v), (w, v), color, 1, cv2.LINE_AA)
+    # oriented quad + centre dot
+    cv2.polylines(out, [pts], True, color, 2, cv2.LINE_AA)
+    cv2.circle(out, (u, v), 3, color, -1, cv2.LINE_AA)
+
+    txt = f"{label} {best.score:.0f}"
+    if base_xy is not None:
+        txt += f"  base ({base_xy[0]:+.3f}, {base_xy[1]:+.3f})"
+    half_h = max(best.width_px, best.height_px) / 2.0
+    _put_label(out, txt, (u - 40, int(v - half_h - 8)), color)
     return out
 
 

@@ -1,9 +1,11 @@
 """Tests for the pure detection-overlay seam (lib.image_overlay)."""
 import numpy as np
 
+from robo67_insertion.lib.box_detect import Box
 from robo67_insertion.lib.hole_detect import Hole
 from robo67_insertion.lib.image_overlay import (
     decode_jpeg,
+    draw_box_overlay,
     draw_servo_overlay,
     draw_socket_overlay,
     encode_jpeg,
@@ -13,6 +15,13 @@ from robo67_insertion.lib.image_overlay import (
 def _img(h=120, w=160):
     # mid-grey so coloured annotations clearly differ from the background
     return np.full((h, w, 3), 60, dtype=np.uint8)
+
+
+def _box(u=80.0, v=60.0, w=40.0, h=30.0):
+    corners = np.array([[u - w / 2, v - h / 2], [u + w / 2, v - h / 2],
+                        [u + w / 2, v + h / 2], [u - w / 2, v + h / 2]], float)
+    return Box(u=u, v=v, width_px=w, height_px=h, angle_deg=0.0, score=1234.0,
+               corners=corners)
 
 
 def test_socket_overlay_preserves_shape_and_dtype():
@@ -54,6 +63,38 @@ def test_socket_overlay_with_base_xy_label():
     out = draw_socket_overlay(img, [Hole(80.0, 60.0, 18.0, 0.9)],
                               base_xy=(0.45, -0.02))
     assert not np.array_equal(out, img)
+
+
+def test_box_overlay_preserves_shape_and_draws():
+    img = _img()
+    out = draw_box_overlay(img, [_box()])
+    assert out.shape == img.shape and out.dtype == np.uint8
+    assert not np.array_equal(out, img)
+
+
+def test_box_overlay_does_not_mutate_input():
+    img = _img()
+    before = img.copy()
+    draw_box_overlay(img, [_box()])
+    assert np.array_equal(img, before)
+
+
+def test_box_overlay_empty_returns_unmodified_copy():
+    img = _img()
+    out = draw_box_overlay(img, [])
+    assert np.array_equal(out, img) and out is not img
+
+
+def test_box_overlay_with_base_xy_label():
+    img = _img()
+    out = draw_box_overlay(img, [_box()], base_xy=(0.45, -0.02))
+    assert not np.array_equal(out, img)
+
+
+def test_box_overlay_accepts_grayscale():
+    gray = np.full((120, 160), 60, dtype=np.uint8)
+    out = draw_box_overlay(gray, [_box()])
+    assert out.ndim == 3 and out.shape[2] == 3
 
 
 def test_servo_overlay_draws_arrow_and_ring():

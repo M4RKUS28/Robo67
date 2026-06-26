@@ -25,7 +25,7 @@ Usage:
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 
 
@@ -34,16 +34,25 @@ def generate_launch_description():
     homography = LaunchConfiguration("homography_path")
     gripper = LaunchConfiguration("gripper")
     socket_kind = LaunchConfiguration("socket_kind")
+    detector = LaunchConfiguration("detector")
+
+    # The overhead overlay topic has a single writer; pick exactly ONE overhead
+    # detector. 'socket' (default) = peg-in-hole; 'box' = cable-insertion I/O box.
+    is_socket = IfCondition(PythonExpression(["'", detector, "' == 'socket'"]))
+    is_box = IfCondition(PythonExpression(["'", detector, "' == 'box'"]))
 
     return LaunchDescription([
         DeclareLaunchArgument("socket_top_z", default_value="0.0",
-                              description="Measured socket-top Z in base frame (m)."),
+                              description="Measured socket/box-top Z in base frame (m)."),
         DeclareLaunchArgument("homography_path", default_value="",
                               description="Path to c920_homography.npz from calibration."),
         DeclareLaunchArgument("gripper", default_value="false",
                               description="Also bring up the D405 gripper camera + servo feeds."),
         DeclareLaunchArgument("socket_kind", default_value="white",
                               description="'white' (real socket) or 'dark' (legacy hole)."),
+        DeclareLaunchArgument("detector", default_value="socket",
+                              description="Overhead detector: 'socket' (peg-in-hole) or "
+                                          "'box' (cable-insertion I/O box)."),
 
         # -- overhead C920: device owner + detector (overlay) ---------------
         Node(
@@ -53,12 +62,22 @@ def generate_launch_description():
         ),
         Node(
             package="robo67_insertion", executable="socket_detector",
-            name="socket_detector", output="screen",
+            name="socket_detector", output="screen", condition=is_socket,
             parameters=[{
                 "source": "topic",
                 "socket_top_z": socket_top_z,
                 "homography_path": homography,
                 "socket_kind": socket_kind,
+                "rate_hz": 5.0,
+            }],
+        ),
+        Node(
+            package="robo67_insertion", executable="box_detector",
+            name="box_detector", output="screen", condition=is_box,
+            parameters=[{
+                "source": "topic",
+                "box_top_z": socket_top_z,
+                "homography_path": homography,
                 "rate_hz": 5.0,
             }],
         ),
