@@ -118,6 +118,35 @@ def test_orb_locates_box_in_reference_frame():
     assert abs(b.u - 676) < 60 and abs(b.v - 584) < 60, f"({b.u},{b.v})"
     assert b.score >= 20  # plenty of RANSAC inliers
     assert b.corners.shape == (4, 2)
+    # the identity-preserving template outline is also published
+    assert b.template_corners is not None
+    assert b.template_corners.shape == (4, 2)
+
+
+def _quad_area(quad):
+    return cv2.contourArea(np.asarray(quad, np.float32))
+
+
+def test_orb_tight_box_is_tighter_than_template_outline():
+    """The displayed/targeted box hugs the inlier keypoints, so it is strictly
+    SMALLER than the projected (padded) template outline -- this is the fix for
+    the 'lots of space between the box and the detection' looseness."""
+    img = cv2.imread(os.path.join(FIXTURES, "c920_io_box_moved.jpg"))
+    b = detect_box_orb(img, _template())[0]
+    tight = _quad_area(b.corners)
+    template = _quad_area(b.template_corners)
+    assert tight < 0.8 * template, f"tight={tight:.0f} template={template:.0f}"
+    # and the tight box still actually covers the box centre region
+    assert tight > 5000, f"tight box implausibly small ({tight:.0f})"
+
+
+def test_orb_box_inflate_scales_the_tight_quad():
+    img = cv2.imread(os.path.join(FIXTURES, "c920_io_box.jpg"))
+    tight = detect_box_orb(img, _template(), BoxOrbParams(box_inflate=1.0))[0]
+    grown = detect_box_orb(img, _template(), BoxOrbParams(box_inflate=1.3))[0]
+    assert _quad_area(grown.corners) > _quad_area(tight.corners)
+    # inflation keeps the centre put (within a couple px of rounding)
+    assert abs(grown.u - tight.u) < 3 and abs(grown.v - tight.v) < 3
 
 
 def test_orb_locates_box_in_moved_frame():

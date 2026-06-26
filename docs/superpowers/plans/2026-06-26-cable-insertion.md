@@ -24,6 +24,34 @@ So the descend / spiral-search / contact / seat machinery is reused **unchanged*
 new work is perception (box + port), wrist-camera hand-eye calibration, a two-stage
 orchestration runner, and dashboard surfacing.
 
+## Pivot to the SHORTER overhead-only path (2026-06-26, decided with user)
+
+**Time-saving decision: skip the wrist D405 + hand-eye entirely (Phase 4) and
+locate the port from the OVERHEAD camera only.** The port panel faces straight
+UP at the C920 (the I/O box lies on its back — see `captures/overhead_live_cable.jpg`),
+so tool-down vertical insertion is valid and no second camera is needed.
+
+The single overhead homography is metric only on its calibration plane, so it
+cannot read true cm-on-box for the port (parallax off the panel plane ≈ 1–2 cm).
+We therefore **TEACH the port once through the ROBOT** (parallax-free): with the
+box in view, hand-guide the EE tip onto the port and read its base XY from
+`FrankaState`, then store it as an OFFSET in the BOX'S OWN frame. At runtime the
+box is re-detected (it may be moved AND rotated) and the offset re-applied, so
+the port target follows the box rigidly. The force-probed `DESCEND_TO_CONTACT`
+(Z) + `SEARCH_SPIRAL` (2 cm) absorb the residual.
+
+Implemented (host-tested, offline `--selftest` PASS, `pytest` green):
+- `lib/port_offset.py` (pure: box frame from ORB corners `[TL,TR,BR,BL]` mapped
+  to base, teach/apply, translation+rotation invariant) + `test/test_port_offset.py`.
+- `scripts/hw_teach_port_offset.py` — guided teach (mirrors `calibrate_guided.py`),
+  saves `config/port_offset.npz`.
+- `scripts/hw_cable_insertion_vision.py` — now perceives box corners, resolves the
+  PORT via the taught offset (auto-loads `config/port_offset.npz`; box-centre if
+  absent), and with `--insert` hands the port XYZ to the insertion loop for a
+  **SEAT-while-gripped** run (no `--release-on-insert`).
+
+Still TODO (real arm): run the teach once, tune the seat params (Phase 5), live run.
+
 ## Decisions locked with the user (2026-06-26)
 
 1. **Seat while gripped (no release).** Unlike the peg task (which opens the gripper on
@@ -134,7 +162,10 @@ loop), the C920→base homography + its calibration tool.
       (First live attempt used the texture detector and moved to the WRONG box — that
       motivated the ORB upgrade in Phase 1.)
 
-### Phase 4 — D405 hand-eye calibration (NEW)
+### Phase 4 — D405 hand-eye calibration (NEW) — ⏭️ SKIPPED (overhead-only pivot)
+> Superseded by the box-frame TAUGHT-offset path above (no wrist camera). The
+> `lib/handeye.py` + `calibration/calibrate_handeye.py` code stays for a future
+> wrist-refine stage but is NOT on the critical path.
 - [ ] `lib/handeye.py`: pure `cv2.calibrateHandEye` wrapper + ChArUco/checkerboard board
       pose (`cv2.aruco` / `findChessboardCorners` + `solvePnP`). Host-tested with synthetic poses.
 - [ ] `scripts/hw_calibrate_handeye.py`: guided capture (hand-guide arm to N board views),
@@ -142,8 +173,16 @@ loop), the C920→base homography + its calibration tool.
       `config/d405_handeye.npz`. Mirror `hw_calibrate_socket_proxy.py` UX + `start_calibration`.
 - [ ] Determine depth source: `pyrealsense2` in-container? else taught standoff.
 
-### Phase 5 — Port detector + absolute wrist mapping + SEAT
-- [ ] `lib/port_detect.py` + `test/test_port_detect.py`.
+### Phase 5 — Port localization + SEAT (overhead-only path)
+- [x] **Box-frame TAUGHT offset** replaces the wrist port detector + absolute
+      mapping: `lib/port_offset.py` (+ tests) + `scripts/hw_teach_port_offset.py`
+      (jogged truth → `config/port_offset.npz`). Port follows a moved/rotated box.
+- [x] **SEAT-while-gripped wiring**: `hw_cable_insertion_vision.py --insert` hands the
+      port XYZ to `hardware_insertion_node.run_ros` with NO `--release-on-insert`
+      and bounded seat defaults (`--insert-depth 0.008 --insert-press 10
+      --torque-abort 10 --pos-stiff 2000`). **TUNE on the real arm.**
+- [ ] (optional, deferred) wrist D405 port detector + IBVS refine: `lib/port_detect.py`,
+      `EyeInHandMappingAdapter`, `port_detector_node.py`.
 - [ ] `lib/pixel_mapping.py`: `EyeInHandMappingAdapter` (port pixel + depth + `T_cam_ee` +
       EE pose → absolute base XYZ); `test/test_pixel_mapping.py` additions.
 - [ ] `nodes/port_detector_node.py` (or extend `d405_servo_node`) + wrist overlay.

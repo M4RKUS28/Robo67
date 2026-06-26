@@ -36,6 +36,7 @@ Pipeline
 """
 from dataclasses import dataclass
 import math
+from typing import Optional
 
 import cv2
 import numpy as np
@@ -70,7 +71,18 @@ class Box:
         times square-root of area, normalized). Used to sort candidates.
     corners:
         ``(4, 2)`` float array of the oriented rectangle's corner pixels
-        (``cv2.boxPoints`` order), handy for drawing the quad overlay.
+        (``cv2.boxPoints`` order), handy for drawing the quad overlay. For the
+        ORB matcher this is the **tight** box (the min-area rect of the matched
+        inlier keypoints, see :class:`OrbBoxMatcher`) -- it hugs the actual box
+        face rather than the padded template outline.
+    template_corners:
+        ``(4, 2)`` float array of the projected reference-template outline,
+        ``[TL, TR, BR, BL]`` -- **identity-preserving** across box rotations
+        (the same template corner always maps to the same physical box corner).
+        Set ONLY by the ORB matcher; ``None`` for the texture detector. The
+        box-frame port offset relies on this ordered quad; ``corners`` (which
+        comes from ``minAreaRect`` and is NOT identity-preserving) must not be
+        used for that.
     """
 
     u: float
@@ -80,6 +92,7 @@ class Box:
     angle_deg: float
     score: float
     corners: np.ndarray
+    template_corners: Optional[np.ndarray] = None
 
 
 @dataclass
@@ -230,20 +243,79 @@ class BoxOrbParams:
     min_inliers:
         Minimum RANSAC inliers to accept a detection. Below this the box is
         considered absent (rejects empty/cluttered scenes that lack the box).
+    box_inflate:
+        Scale applied to the tight inlier extent (the matched keypoints sit
+        slightly inside the physical box face, so a small >1 inflation makes the
+        quad hug the box edges). ``1.0`` = exactly the keypoint extent.
+    min_box_side_px:
+        If the inlier extent collapses below this on either side (degenerate /
+        near-collinear inliers), fall back to the projected template outline
+        instead of emitting a sliver.
     """
 
     n_features: int = 2000
     ratio: float = 0.75
     ransac_reproj_px: float = 5.0
     min_inliers: int = 20
+    box_inflate: float = 1.15
+    min_box_side_px: float = 10.0
 
 
-def _box_from_quad(quad: np.ndarray, score: float) -> Box:
-    """Build a :class:`Box` from a projected (4, 2) corner quad."""
+def _box_from_quad(quad: np.ndarray, score: float,
+                   template_corners: Optional[np.ndarray] = None) -> Box:
+    """Build a :class:`Box` from an oriented (4, 2) corner quad.
+
+    ``quad`` is the box used for size/centre/overlay (for the ORB matcher this
+    is the TIGHT inlier rect). ``template_corners`` is the optional
+    identity-preserving template outline (the ORB matcher passes its projected
+    quad here; the texture detector leaves it ``None``).
+    """
     rect = cv2.minAreaRect(quad.astype(np.float32))  # ((cx,cy),(w,h),angle)
     (cx, cy), (rw, rh), angle = rect
+    tc = None if template_corners is None else np.asarray(template_corners, float)
     return Box(u=float(cx), v=float(cy), width_px=float(rw), height_px=float(rh),
-               angle_deg=float(angle), score=float(score), corners=quad.astype(float))
+               angle_deg=float(angle), score=float(score), corners=quad.astype(float),
+               template_corners=tc)
+
+
+def _tight_quad_from_inliers(inlier_pts: np.ndarray, template_quad: np.ndarray,
+                             inflate: float, min_side_px: float) -> np.ndarray:
+    """Tight oriented quad from the matched inlier scene keypoints.
+
+    The RANSAC inliers are real feature points ON the box face, so their extent
+    hugs the actual object far more tightly than the projected (padded) template
+    outline. The box ORIENTATION is taken from the projected template top edge
+    (``template_quad`` TL->TR), which is stable because it comes from the RANSAC
+    homography -- using ``cv2.minAreaRect`` on the keypoints instead lets the box
+    axis flip/skew with the (uneven) keypoint spread. The EXTENT along those two
+    axes comes from the inliers; ``inflate`` (>1) grows it a touch so it reaches
+    the physical edges (keypoints sit just inside). Falls back to
+    ``template_quad`` if the inlier set is too small or the box is degenerate.
+    """
+    pts = np.asarray(inlier_pts, np.float32).reshape(-1, 2)
+    tquad = np.asarray(template_quad, float)
+    if len(pts) < 3:
+        return tquad
+    ex = tquad[1] - tquad[0]  # box "x" (top edge) direction in the scene
+    nx = float(np.linalg.norm(ex))
+    if nx < 1e-6:
+        return tquad
+    ex = ex / nx
+    ey = np.array([-ex[1], ex[0]])  # perpendicular -> a proper rectangle
+    c = pts.mean(axis=0)
+    s = (pts - c) @ ex
+    t = (pts - c) @ ey
+    sc, tc = (s.min() + s.max()) / 2.0, (t.min() + t.max()) / 2.0
+    sh = (s.max() - s.min()) / 2.0 * float(inflate)
+    th = (t.max() - t.min()) / 2.0 * float(inflate)
+    if 2.0 * min(sh, th) < float(min_side_px):
+        return tquad
+    return np.array([
+        c + (sc - sh) * ex + (tc - th) * ey,
+        c + (sc + sh) * ex + (tc - th) * ey,
+        c + (sc + sh) * ex + (tc + th) * ey,
+        c + (sc - sh) * ex + (tc + th) * ey,
+    ], float)
 
 
 class OrbBoxMatcher:
@@ -251,9 +323,16 @@ class OrbBoxMatcher:
 
     The template's ORB features are computed ONCE at construction (so the node
     can call :meth:`detect` per frame cheaply). :meth:`detect` returns a list
-    with a single :class:`Box` (the located box; ``score`` = inlier count and
-    ``corners`` = the projected template outline) or an empty list when the box
-    is absent / too few inliers.
+    with a single :class:`Box` (the located box; ``score`` = inlier count,
+    ``corners`` = the TIGHT box hugging the matched inlier keypoints, and
+    ``template_corners`` = the projected template outline) or an empty list when
+    the box is absent / too few inliers.
+
+    Why two quads: the projected template outline is identity-preserving (the
+    box-frame port offset needs that) but loose -- it carries the template's
+    padding around the box. The displayed/targeted box (``corners``) is instead
+    the min-area rect of the RANSAC inlier keypoints, which sit ON the box face,
+    so it hugs the real object. See :func:`_tight_quad_from_inliers`.
     """
 
     def __init__(self, template_bgr: np.ndarray, params: BoxOrbParams = BoxOrbParams()):
@@ -291,10 +370,16 @@ class OrbBoxMatcher:
         inliers = int(mask.sum())
         if inliers < p.min_inliers:
             return []
+        # identity-preserving projected template outline ([TL, TR, BR, BL])
         corners = np.float32([[0, 0], [self._tw, 0], [self._tw, self._th],
                               [0, self._th]]).reshape(-1, 1, 2)
-        quad = cv2.perspectiveTransform(corners, H).reshape(-1, 2)
-        return [_box_from_quad(quad, float(inliers))]
+        template_quad = cv2.perspectiveTransform(corners, H).reshape(-1, 2)
+        # TIGHT box: extent of the inlier scene keypoints (on the box face),
+        # oriented by the (stable) projected template edge.
+        inlier_pts = dst.reshape(-1, 2)[mask.ravel() == 1]
+        tight_quad = _tight_quad_from_inliers(
+            inlier_pts, template_quad, p.box_inflate, p.min_box_side_px)
+        return [_box_from_quad(tight_quad, float(inliers), template_corners=template_quad)]
 
 
 def detect_box_orb(bgr: np.ndarray, template_bgr: np.ndarray,

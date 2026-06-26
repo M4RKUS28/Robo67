@@ -33,6 +33,24 @@ insertion:
   retry_limit: 3
   control_rate_hz: 50.0
 
+# Opt-in force-guided (admittance) search/seat (ADR-0002). enabled:false keeps
+# the current verified fixed-equilibrium behavior. See
+# docs/architecture/force-guided-insertion-2026-06-26.md.
+force_search:
+  enabled: false
+  search_press_n: 5.0
+  insert_press_n: 6.0
+  k_adm: 0.0008
+  v_cap_mps: 0.01
+  ramp_s: 0.5
+  fz_filter_alpha: 0.2
+  slacken_frac: 0.4
+  confirm_drop_m: 0.003
+  confirm_window_s: 1.0
+  spiral_freeze_on_slacken: true
+  settle_s: 0.4
+  max_force_n: 12.0
+
 topics:
   # VERIFIED against the running sim (Phase 0.3). See PHASE0_VERIFIED.md.
   controller_name: panda_cartesian_impedance_controller

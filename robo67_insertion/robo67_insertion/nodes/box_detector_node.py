@@ -72,11 +72,15 @@ class BoxDetector(Node):
         self.declare_parameter("overlay_topic", "")  # "" -> topics.cam_overhead_overlay
         self.declare_parameter("min_texture_std", BoxParams.min_texture_std)
         # detection method: "orb" (object-specific template match; robust to
-        # clutter -- DEFAULT) or "texture" (busiest-blob heuristic). With ORB,
-        # fall back to texture only if --fallback-texture and ORB finds nothing.
+        # clutter -- DEFAULT) or "texture" (busiest-blob heuristic). The texture
+        # fallback is OFF by default: it is object-agnostic and will confidently
+        # label the busiest distractor (a white box, a phone) as the I/O box on
+        # a frame where the real box is absent. For insertion a wrong detection
+        # is worse than no detection, so prefer ORB-only (opt back in with
+        # fallback_texture:=true if you knowingly want the heuristic).
         self.declare_parameter("method", "orb")
         self.declare_parameter("template_path", "")  # "" -> config/box_template.jpg
-        self.declare_parameter("fallback_texture", True)
+        self.declare_parameter("fallback_texture", False)
         self.declare_parameter("orb_min_inliers", BoxOrbParams.min_inliers)
 
         cfg_path = self.get_parameter("config_path").value or _default_config_path()

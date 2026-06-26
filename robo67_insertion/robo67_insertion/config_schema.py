@@ -83,6 +83,29 @@ class InsertionCfg:
 
 
 @dataclass
+class ForceSearchCfg:
+    """Opt-in force-guided (admittance) search/seat tuning (ADR-0002).
+
+    ``enabled`` False reproduces the current verified fixed-equilibrium behavior.
+    See docs/architecture/force-guided-insertion-2026-06-26.md.
+    """
+
+    enabled: bool = False            # opt-in; False = current verified behavior
+    search_press_n: float = 5.0      # F* target press during SEARCH_SPIRAL
+    insert_press_n: float = 6.0      # F* during PUSH_INSERT (if not releasing)
+    k_adm: float = 0.0008            # m/s per N (admittance gain)
+    v_cap_mps: float = 0.01          # axial equilibrium speed cap (<= v_max)
+    ramp_s: float = 0.5              # contact-force -> search_press ramp
+    fz_filter_alpha: float = 0.2
+    slacken_frac: float = 0.4
+    confirm_drop_m: float = 0.003
+    confirm_window_s: float = 1.0
+    spiral_freeze_on_slacken: bool = True
+    settle_s: float = 0.4
+    max_force_n: float = 12.0        # soft clamp on the regulated force
+
+
+@dataclass
 class TopicsCfg:
     # VERIFIED against the running sim (Phase 0.3). See PHASE0_VERIFIED.md.
     controller_name: str = "panda_cartesian_impedance_controller"
@@ -151,6 +174,7 @@ class RoboConfig:
     spiral: SpiralCfg = field(default_factory=SpiralCfg)
     safety: SafetyCfg = field(default_factory=SafetyCfg)
     insertion: InsertionCfg = field(default_factory=InsertionCfg)
+    force_search: ForceSearchCfg = field(default_factory=ForceSearchCfg)
     topics: TopicsCfg = field(default_factory=TopicsCfg)
     camera: CameraCfg = field(default_factory=CameraCfg)
     socket_cube_height_m: float = 0.06   # measured in Phase 0
@@ -175,6 +199,7 @@ def load_config(path: str) -> RoboConfig:
     cfg.spiral = _merge(cfg.spiral, raw.get("spiral", {}))
     cfg.safety = _merge(cfg.safety, raw.get("safety", {}))
     cfg.insertion = _merge(cfg.insertion, raw.get("insertion", {}))
+    cfg.force_search = _merge(cfg.force_search, raw.get("force_search", {}))
     cfg.topics = _merge(cfg.topics, raw.get("topics", {}))
     cfg.camera = _merge(cfg.camera, raw.get("camera", {}))
     if "socket_cube_height_m" in raw:
