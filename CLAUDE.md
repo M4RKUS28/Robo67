@@ -90,6 +90,34 @@ Full doc + problems-encountered + recovery table: [`docs/runbooks/automated-inse
   header (`dashboard/server/insertion_control.py` spawns/SIGINTs the runner;
   `POST /api/insertion/{start,stop}`, `GET /api/insertion/status`). Start is
   live-mode only and confirm-gated. Stop = SIGINT → node holds last pose.
+- **Relaunch arm button**: live dashboard header also has **Relaunch arm**
+  (`dashboard/server/bringup_control.py`; `POST /api/bringup/relaunch`, `GET
+  /api/bringup/status`; UI `dashboard/web/src/components/BringupControl.tsx`).
+  Confirm-gated, live-mode only. It is the §5 clean restart in one click: kill
+  any `franka.launch.py`/`franka_control2_node`/`controller_manager`/
+  `gripper.launch.py`/`franka_gripper` → relaunch `franka.launch.py` → wait for
+  `FrankaState` → `error_recovery` if `robot_mode != 2` → relaunch
+  `franka_gripper gripper.launch.py` (separate, NOT `load_gripper:=true`) →
+  verify mode 2 + `/panda_gripper/move`. Scope = bringup + gripper only (leaves
+  the logging/camera graph + dashboard alone); launches use `start_new_session`
+  so they survive a dashboard restart. Relaunching kills any in-flight insertion
+  → stop the insertion first. `robot_ip`/`arm_id`/gripper-ns are env-overridable
+  (`ROBO67_ROBOT_IP`/`ROBO67_ARM_ID`/`ROBO67_GRIPPER_NS`). Full doc:
+  [`docs/runbooks/automated-insertion.md`](docs/runbooks/automated-insertion.md) §7.1.
+- **Home button**: live dashboard header **Home** (`dashboard/server/home_control.py`;
+  `POST /api/home/run`+`/api/home/stop`, `GET /api/home/status`; UI
+  `dashboard/web/src/components/HomeControl.tsx`). Confirm-gated, live-mode only.
+  "Home" = hold the pose the arm is in RIGHT NOW (not a fixed config): spawns
+  `scripts/hw_cartesian_hold.py --secs 4.0 --cmd-mode auto`, which captures the
+  current EE and streams it as the equilibrium so the arm settles where it is
+  (≈ no net motion; the controller retains the last equilibrium after exit). Use
+  it to settle the soft controller after relaunch/nudge/drift. Hold time =
+  `ROBO67_HOME_HOLD_S`. Doc §7.2.
+- **Logs page**: dashboard has a **Logs** tab (`/logs`,
+  `dashboard/web/src/routes/Logs.tsx` + `components/LogPanel.tsx`) showing the
+  ring-buffered stdout of all three managed runs (insertion / arm relaunch /
+  home) from `/api/{insertion,bringup,home}/status`, polled 1 Hz, newest at the
+  bottom. Live mode only. Doc §7.3.
 - **Verified param set** (keep in sync with the dashboard `DEFAULT_ARGS`):
   `--pos-stiff 2000 --approach-tol 0.015 --press-force 18 --spiral-max-radius 0.02
   --torque-abort 12 --release-on-insert --insert-drop-trigger 0.003`.

@@ -69,6 +69,12 @@ class Handler(BaseHTTPRequestHandler):
     def _insertion(self):
         return self.server.insertion  # type: ignore[attr-defined]
 
+    def _bringup(self):
+        return self.server.bringup  # type: ignore[attr-defined]
+
+    def _home(self):
+        return self.server.home  # type: ignore[attr-defined]
+
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
 
@@ -109,6 +115,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json(self._insertion().start())
             if path == "/api/insertion/stop":
                 return self._send_json(self._insertion().stop())
+            if path == "/api/bringup/relaunch":
+                return self._send_json(self._bringup().relaunch())
+            if path == "/api/home/run":
+                return self._send_json(self._home().run())
+            if path == "/api/home/stop":
+                return self._send_json(self._home().stop())
             return self._send_json({"error": "not found", "path": path}, status=404)
         except (BrokenPipeError, ConnectionResetError):
             return
@@ -127,6 +139,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json(self._provider().config())
             if path == "/api/insertion/status":
                 return self._send_json(self._insertion().status())
+            if path == "/api/bringup/status":
+                return self._send_json(self._bringup().status())
+            if path == "/api/home/status":
+                return self._send_json(self._home().status())
             if path == "/api/stream":
                 return self._stream_sse()
             if path.startswith("/api/cam/"):
@@ -268,20 +284,29 @@ def main(argv=None):
     provider.start()
 
     from insertion_control import InsertionController
+    from bringup_control import BringupController
+    from home_control import HomeController
 
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     httpd.daemon_threads = True
     httpd.provider = provider  # type: ignore[attr-defined]
     # The Start button spawns the real-arm insertion -> live mode only.
     httpd.insertion = InsertionController(enabled=(args.mode == "live"))  # type: ignore[attr-defined]
+    # The Relaunch button stops + relaunches the bringup/gripper (real arm) and
+    # reads robot_mode off the live provider to verify -> live mode only.
+    httpd.bringup = BringupController(provider=provider,  # type: ignore[attr-defined]
+                                      enabled=(args.mode == "live"))
+    # The Home button holds the pose the arm is in right now -> live mode only.
+    httpd.home = HomeController(enabled=(args.mode == "live"))  # type: ignore[attr-defined]
 
     web = "serving built SPA from web/dist" if os.path.isdir(WEB_DIST) else \
         "no built SPA (use Vite dev server)"
     print(f"[robo67-dashboard] mode={args.mode}  http://{args.host}:{args.port}  ({web})")
     print(f"[robo67-dashboard]   GET  /api/health  /api/config  /api/stream  "
-          f"/api/cam/c920  /api/cam/d405  /api/insertion/status")
+          f"/api/cam/c920  /api/cam/d405  /api/insertion/status  /api/bringup/status  "
+          f"/api/home/status")
     print(f"[robo67-dashboard]   POST /api/insertion/start  /api/insertion/stop  "
-          f"(live mode only)")
+          f"/api/bringup/relaunch  /api/home/run  /api/home/stop  (live mode only)")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

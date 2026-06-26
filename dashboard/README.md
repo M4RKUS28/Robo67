@@ -103,6 +103,17 @@ coarse `robot_mode` until telemetry arrives.
 | `GET /api/stream` | **SSE** telemetry, one JSON snapshot per tick (see `web/src/api/types.ts`) |
 | `GET /api/cam/<name>` | **MJPEG** camera stream. live `<name>`: `c920`, `c920_overlay`, `d405`, `d405_overlay` |
 | `GET /api/cam/<name>/jpg` | single JPEG snapshot |
+| `GET /api/insertion/status` | automated-insertion run status (`enabled`, `running`, `elapsed_s`, `log`) |
+| `POST /api/insertion/start` · `POST /api/insertion/stop` | start (Confirm-gated) / SIGINT the insertion — **live mode only** |
+| `GET /api/bringup/status` | arm-bringup relaunch status (`busy`, `phase`, `robot_mode`, `mode_ok`, `gripper_ok`, `ok`, `log`) |
+| `POST /api/bringup/relaunch` | stop + relaunch `franka.launch.py` + gripper, clear reflex, verify Move (2) + `/panda_gripper/move` — **live mode only** |
+| `GET /api/home/status` | "bring to home" run status (`enabled`, `running`, `elapsed_s`, `last_exit`, `log`) |
+| `POST /api/home/run` · `POST /api/home/stop` | hold the pose the arm is in right now (`hw_cartesian_hold.py`) / SIGINT it — **live mode only** |
+
+The header controls (live mode only): **Relaunch arm** (`bringup_control.py`),
+**Home** = hold the current pose (`home_control.py` → `hw_cartesian_hold.py`),
+**Start insertion / Stop** (`insertion_control.py`). The **Logs** page
+(`/logs`) shows the ring-buffered stdout of all three managed runs.
 
 Telemetry is pushed over plain Server-Sent Events and cameras over MJPEG, so the
 backend needs **no** extra Python packages (no FastAPI/uvicorn/websockets) and

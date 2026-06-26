@@ -91,6 +91,10 @@ class LiveProvider:
         self._speed = 0.0
         self._wrench = [0.0] * 6
         self._robot_mode = 0
+        # wall-clock of the last FrankaState message -- lets the bringup
+        # relaunch detect when a freshly-launched bringup starts publishing
+        # again (the subscription auto-rediscovers the new publisher).
+        self._last_state_wall = 0.0
         self._phase = "UNKNOWN"
         self._prev_phase = "UNKNOWN"
         self._cmd = None
@@ -128,6 +132,8 @@ class LiveProvider:
         from sensor_msgs.msg import CompressedImage
         from std_msgs.msg import Bool, Float64, Float64MultiArray, Int32, String
         from franka_msgs.msg import FrankaState
+
+        from robo67_insertion.ros_qos import camera_qos
 
         prov = self
 
@@ -167,9 +173,12 @@ class LiveProvider:
                 # camera feeds (raw + overlay)
                 for feed, (attr, default) in CAM_FEEDS.items():
                     topic = prov._t(attr, default)
+                    # must match the publisher's BEST_EFFORT/depth-1 QoS, else
+                    # no frames flow (incompatible QoS) -- and depth 1 keeps the
+                    # dashboard on the freshest frame, never a stale backlog.
                     self.create_subscription(
                         CompressedImage, topic,
-                        lambda msg, f=feed: self._on_image(f, msg), 5)
+                        lambda msg, f=feed: self._on_image(f, msg), camera_qos())
                 self.create_timer(1.0 / 30.0, self._publish)
 
             def _on_state(self, msg):
@@ -184,6 +193,7 @@ class LiveProvider:
                     prov._ee = ee
                     prov._wrench = list(msg.o_f_ext_hat_k)
                     prov._robot_mode = int(getattr(msg, "robot_mode", 0))
+                    prov._last_state_wall = time.time()
 
             def _on_det(self, msg):
                 d = list(msg.data)
@@ -297,6 +307,18 @@ class LiveProvider:
     def latest(self) -> Optional[dict]:
         return self.hub.latest()
 
+    # -- robot-state accessors (used by the bringup relaunch verification) --
+
+    def robot_mode(self) -> int:
+        """Latest Franka robot_mode (1=Idle 2=Move 4=Reflex 5=UserStopped)."""
+        with self._lock:
+            return self._robot_mode
+
+    def last_state_wall(self) -> float:
+        """Wall-clock of the last FrankaState message (0.0 if never seen)."""
+        with self._lock:
+            return self._last_state_wall
+
     # -- cameras (topic-sourced) ----------------------------------------
 
     def camera_names(self) -> List[str]:
@@ -305,11 +327,17 @@ class LiveProvider:
     def camera_jpeg(self, name: str) -> Optional[bytes]:
         return self._cam_jpeg.get(name)
 
-    def camera_iter(self, name: str, fps: float = 8.0):
+    def camera_iter(self, name: str, fps: float = 30.0):
+        # Poll fast, but only emit a frame when it actually CHANGES (each ROS
+        # message is a fresh bytes object, so identity comparison works). Sending
+        # duplicate JPEGs just builds a downstream TCP/browser buffer and adds
+        # latency; emitting only new frames keeps the stream live and current.
         period = 1.0 / max(1.0, fps)
+        last = None
         while not self._stop.is_set():
             frame = self._cam_jpeg.get(name)
-            if frame is not None:
+            if frame is not None and frame is not last:
+                last = frame
                 yield frame
             time.sleep(period)
 

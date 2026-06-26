@@ -28,6 +28,17 @@ CLI), which hands off to `robo67_insertion/nodes/hardware_insertion_node.py`
    → **Confirm** (it commands the real arm). **Stop** cancels at any time.
    - The button is **live-mode only**; in mock mode it shows `insertion · live-only`.
    - Status chip shows `inserting · Ns` and the latest log line while running.
+3. If the bringup ever crashes / goes Idle / trips a reflex (see §4/§5), hit the
+   **Relaunch arm** button (header, left of Start insertion) → **Confirm**. It
+   stops + relaunches `franka.launch.py` and the gripper node, clears a reflex,
+   and verifies Move (2) + `/panda_gripper/move` — the §5 clean-restart, one click.
+   See §7.1.
+4. **Home** button (header, next to Relaunch arm) → **Confirm**: holds the pose
+   the arm is in **right now** (re-anchors the controller equilibrium at the
+   current EE; ~no net motion). Use it to settle the soft controller after a
+   relaunch / nudge / drift. See §7.2.
+5. The **Logs** tab shows the live stdout of all three managed runs (insertion,
+   arm relaunch, home) — the same ring-buffered output the status chips summarise.
 
 ### From the CLI (inside `multipanda-container`, ROS sourced, domain 1)
 ```bash
@@ -178,7 +189,8 @@ Run everything **inside `multipanda-container`** on `ROS_DOMAIN_ID=1`,
 | detection "no socket detected" | cube out of FOV / wrong exposure | place cube in overhead view; exposure auto-locks to 100 |
 | `Stop` from the dashboard | — | sends SIGINT → the node holds its last pose; SIGKILL if it doesn't exit |
 
-Clean relaunch:
+Clean relaunch (the dashboard **Relaunch arm** button does exactly this, plus
+the gripper relaunch + error_recovery + verification — see §7.1):
 ```bash
 pkill -f "franka.launch.py|franka_control2_node|ros2_control_node|controller_manager" || true
 ros2 launch franka_bringup franka.launch.py robot_ip:=192.168.1.67 \
@@ -210,3 +222,64 @@ ros2 launch franka_bringup franka.launch.py robot_ip:=192.168.1.67 \
   /api/insertion/stop`, `GET /api/insertion/status`.
 - `dashboard/web/src/components/InsertionControl.tsx` — the header Start/Stop
   buttons + status, polling `/api/insertion/status` at 1 Hz.
+
+### 7.1 Relaunch-arm control internals
+
+The **Relaunch arm** button (header, left of Start insertion) is the §5 clean
+restart as a single confirm-gated action. **Live-mode only** (the dashboard must
+be running inside the container with ROS sourced, so it can spawn `ros2 launch`).
+
+- `dashboard/server/bringup_control.py` — `BringupController.relaunch()` runs a
+  background sequence (one at a time): **kill** any `franka.launch.py` /
+  `franka_control2_node` / `ros2_control_node` / `controller_manager` /
+  `gripper.launch.py` / `franka_gripper` (broad `pkill`, SIGTERM→SIGKILL; the
+  pattern is fed over **stdin** so it can't match its own shell in the shared
+  host PID namespace) → **launch** `franka_bringup franka.launch.py
+  robot_ip:=192.168.1.67 use_fake_hardware:=false arm_id:=panda` (tracked, own
+  session) → **wait** for `FrankaState` to come back live → if `robot_mode != 2`
+  call `/panda_error_recovery_service_server/error_recovery` → **launch**
+  `franka_gripper gripper.launch.py robot_ip:=192.168.1.67 arm_id:=panda
+  use_fake_hardware:=false` (separate, NOT `load_gripper:=true`) → **verify**
+  `robot_mode == 2` (Move) and `/panda_gripper/move` action present.
+  Scope = **bringup + gripper only** (it never touches the logging/camera graph
+  or the dashboard). The launches use `start_new_session`, so they survive a
+  dashboard restart like the manual terminal launch. `robot_ip`/`arm_id`/gripper
+  namespace are env-overridable (`ROBO67_ROBOT_IP`, `ROBO67_ARM_ID`,
+  `ROBO67_GRIPPER_NS`). `robot_mode` for the verify step is read off the live
+  provider's `FrankaState` subscription.
+- `dashboard/server/serve.py` — `POST /api/bringup/relaunch`, `GET
+  /api/bringup/status` (`{busy, phase, phase_label, bringup_running,
+  gripper_running, robot_mode, mode_ok, gripper_ok, ok, error, elapsed_s, log}`).
+- `dashboard/web/src/components/BringupControl.tsx` — confirm-gated button +
+  progress chip (phase + elapsed + last log line) + an outcome chip
+  (`arm ready` / mode + gripper warnings), polling `/api/bringup/status` at 1 Hz.
+- **Caveat**: relaunching kills a running bringup and therefore any in-flight
+  insertion talking to it — hence the confirm step. Stop an insertion first.
+
+### 7.2 Home-control internals
+
+The **Home** button holds the pose the arm is in **right now** — "home" is not a
+fixed configuration, it is whatever pose is current when you press it. The
+commanded equilibrium is re-anchored to the current measured EE, so the arm
+settles exactly where it is (≈ no net motion). Confirm-gated, **live-mode only**.
+
+- `dashboard/server/home_control.py` — `HomeController.run()` spawns
+  `scripts/hw_cartesian_hold.py --secs 4.0 --cmd-mode auto` (own process group,
+  ring-buffered stdout, one at a time). The script reads one `FrankaState`,
+  captures the current EE as the hold target, and streams it as the desired pose
+  on the auto-detected command path (the real-arm subscriber path). The cartesian
+  impedance controller retains the last commanded equilibrium after the process
+  exits, so a short hold is enough to re-anchor. Hold duration is env-overridable
+  (`ROBO67_HOME_HOLD_S`).
+- `dashboard/server/serve.py` — `POST /api/home/run`, `POST /api/home/stop`
+  (SIGINT), `GET /api/home/status`.
+- `dashboard/web/src/components/HomeControl.tsx` — confirm-gated **Home** button +
+  `homing · Ns` chip, polling `/api/home/status` at 1 Hz.
+
+### 7.3 Logs page
+
+`dashboard/web/src/routes/Logs.tsx` (`/logs`) renders three `LogPanel`s
+(`components/LogPanel.tsx`) — **Insertion**, **Arm relaunch**, **Home** — each
+showing the ring-buffered stdout of the corresponding managed subprocess (from
+`/api/{insertion,bringup,home}/status`), polled at 1 Hz, newest line stuck to the
+bottom, with a running/elapsed/outcome chip. Populates in **live mode** only.

@@ -1,17 +1,20 @@
 import clsx from "clsx";
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { Activity, Cctv, ListTree, Radio, Cpu } from "lucide-react";
+import { Activity, Cctv, ListTree, Radio, Cpu, ScrollText } from "lucide-react";
 import { useHealth } from "../api/queries";
 import { useTelemetry } from "../state/TelemetryProvider";
 import { phaseMeta } from "../lib/phases";
 import { fmtClock } from "../lib/format";
 import { InsertionControl } from "./InsertionControl";
+import { BringupControl } from "./BringupControl";
+import { HomeControl } from "./HomeControl";
 
 const NAV = [
   { to: "/", label: "Overview", icon: Activity },
   { to: "/cameras", label: "Cameras", icon: Cctv },
   { to: "/decisions", label: "Decisions", icon: ListTree },
+  { to: "/logs", label: "Logs", icon: ScrollText },
 ] as const;
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -66,6 +69,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Link>
             ))}
           </nav>
+
+          {/* arm bringup relaunch (live mode only) */}
+          <BringupControl />
+
+          {/* bring to home — hold current pose (live mode only) */}
+          <HomeControl />
 
           {/* automated-insertion start / stop (live mode only) */}
           <InsertionControl />

@@ -102,6 +102,29 @@ export interface InsertionStatus {
   log: string[];
 }
 
+// "Bring to home" (hold the pose the arm is in right now) -- live mode only.
+// Same process-run shape as InsertionStatus.
+export type HomeStatus = InsertionStatus;
+
+// Arm bringup relaunch (live mode only): stop + relaunch franka.launch.py +
+// the gripper node, clear reflex, verify mode 2 + /panda_gripper/move.
+export interface BringupStatus {
+  enabled: boolean; // true only in live mode
+  busy: boolean; // a relaunch sequence is in progress
+  phase: string;
+  phase_label: string;
+  bringup_running: boolean;
+  gripper_running: boolean;
+  robot_mode: number | null;
+  robot_mode_label: string;
+  mode_ok: boolean; // robot_mode == 2 (Move)
+  gripper_ok: boolean; // /panda_gripper/move present
+  ok: boolean | null; // result of the last relaunch (null = none yet)
+  error: string | null;
+  elapsed_s: number | null;
+  log: string[];
+}
+
 export interface PhaseInfo {
   id: string;
   label: string;

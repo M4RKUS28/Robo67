@@ -8,6 +8,7 @@ import { AppShell } from "./components/AppShell";
 import { Overview } from "./routes/Overview";
 import { Cameras } from "./routes/Cameras";
 import { Decisions } from "./routes/Decisions";
+import { Logs } from "./routes/Logs";
 
 const rootRoute = createRootRoute({
   component: () => (
@@ -35,7 +36,18 @@ const decisionsRoute = createRoute({
   component: Decisions,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, camerasRoute, decisionsRoute]);
+const logsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/logs",
+  component: Logs,
+});
+
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  camerasRoute,
+  decisionsRoute,
+  logsRoute,
+]);
 
 export const router = createRouter({ routeTree, defaultPreload: "intent" });
 
