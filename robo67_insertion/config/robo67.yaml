@@ -64,6 +64,9 @@ topics:
   socket_pose: /robo67/socket_pose
   socket_detection: /robo67/socket_detection
   servo_correction: /robo67/servo_correction
+  # cable insertion: overhead I/O-box detection (box_detector_node)
+  box_pose: /robo67/box_pose
+  box_detection: /robo67/box_detection
   # Logging: camera feeds (sensor_msgs/CompressedImage, "jpeg").
   # Raw = dedicated camera_publisher (owns the device); overlay = detector-annotated.
   cam_overhead_raw: /robo67/camera/overhead/image_raw/compressed

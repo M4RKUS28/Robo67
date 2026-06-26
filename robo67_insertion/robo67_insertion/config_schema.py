@@ -119,6 +119,9 @@ class TopicsCfg:
     socket_pose: str = "/robo67/socket_pose"
     socket_detection: str = "/robo67/socket_detection"
     servo_correction: str = "/robo67/servo_correction"   # D405 eye-in-hand [dx, dy]
+    # -- cable insertion: overhead I/O-box detection (box_detector_node) -----
+    box_pose: str = "/robo67/box_pose"          # geometry_msgs/PoseStamped (base XY + taught Z)
+    box_detection: str = "/robo67/box_detection"  # std_msgs/Float64MultiArray [u,v,w,h,angle,score]
 
     # -- logging: camera feeds (sensor_msgs/CompressedImage, format "jpeg") ---
     # Raw feeds are published by the dedicated camera_publisher node that OWNS
