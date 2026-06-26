@@ -228,7 +228,6 @@ def build_insertion_args(args, socket_xyz):
     ns.dry_run = args.dry_run
     ns.dry_run_seconds = args.dry_run_seconds
     ns.confirm = args.confirm
-    ns.countdown = args.countdown
 
     ns.topic = args.topic
     ns.state_topic = args.state_topic
@@ -431,7 +430,6 @@ def build_parser():
                     help="perceive socket + compute setpoints but publish NOTHING")
     ap.add_argument("--dry-run-seconds", type=float, default=20.0)
     ap.add_argument("--confirm", action="store_true", help="prompt YES before motion")
-    ap.add_argument("--countdown", type=int, default=3)
 
     ap.add_argument("--topic", default="/cartesian_impedance/pose_desired")
     ap.add_argument("--state-topic", default="/franka_robot_state_broadcaster/robot_state")

@@ -598,11 +598,6 @@ def run_ros(args):
             node.get_logger().info("not confirmed -- exiting without moving.")
             node.destroy_node(); rclpy.shutdown(); return 0
 
-    if not args.dry_run:
-        for c in range(args.countdown, 0, -1):
-            node.get_logger().info(f"inserting in {c} ...")
-            time.sleep(1.0)
-
     # Safety envelope seam (Candidate 4): the impedance command-path profile
     # anchors the step clamp on the PREVIOUS COMMAND (the equilibrium ratchets
     # down independent of the lagging arm) and folds the socket-top z-floor
@@ -896,7 +891,6 @@ def build_parser():
                     help="read state + compute setpoints but DO NOT publish")
     ap.add_argument("--dry-run-seconds", type=float, default=20.0)
     ap.add_argument("--confirm", action="store_true", help="prompt YES before motion")
-    ap.add_argument("--countdown", type=int, default=3)
     ap.add_argument("--nudge", type=float, default=None,
                     help="first-motion test: gently move EE by this dz (m), hold, return")
 
