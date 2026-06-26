@@ -1,4 +1,9 @@
-import { useInsertionStatus, useBringupStatus, useHomeStatus } from "../api/queries";
+import {
+  useInsertionStatus,
+  useBringupStatus,
+  useHomeStatus,
+  useFciStatus,
+} from "../api/queries";
 import { LogPanel } from "../components/LogPanel";
 
 // Process logs for the dashboard's managed real-arm runs. Each panel mirrors the
@@ -6,10 +11,12 @@ import { LogPanel } from "../components/LogPanel";
 //   - Insertion: hw_peg_in_hole_vision.py (Start insertion)
 //   - Arm relaunch: franka.launch.py + gripper relaunch (Relaunch arm)
 //   - Home: hw_cartesian_hold.py (Home — hold current pose)
+//   - FCI: Desk-API login / take-control / activate-FCI (Activate/Deactivate FCI)
 export function Logs() {
   const ins = useInsertionStatus().data;
   const brk = useBringupStatus().data;
   const home = useHomeStatus().data;
+  const fci = useFciStatus().data;
 
   return (
     <div className="space-y-3">
@@ -51,7 +58,7 @@ export function Logs() {
 
       <LogPanel
         title="Home log"
-        subtitle="hw_cartesian_hold.py · hold current pose"
+        subtitle="hw_move_to.py · move to defined home pose"
         enabled={home?.enabled ?? false}
         running={home?.running ?? false}
         elapsedS={home?.elapsed_s ?? null}
@@ -62,6 +69,21 @@ export function Logs() {
         }
         log={home?.log ?? []}
         height={220}
+      />
+
+      <LogPanel
+        title="FCI log"
+        subtitle="Desk API · login → take control → activate/deactivate FCI"
+        enabled={fci?.enabled ?? false}
+        running={fci?.busy ?? false}
+        elapsedS={fci?.elapsed_s ?? null}
+        outcome={
+          fci && !fci.busy && fci.ok != null
+            ? { ok: fci.ok, label: fci.ok ? (fci.last_action ?? "ok") : "failed" }
+            : undefined
+        }
+        log={fci?.log ?? []}
+        height={300}
       />
     </div>
   );

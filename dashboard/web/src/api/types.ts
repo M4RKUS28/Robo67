@@ -102,9 +102,11 @@ export interface InsertionStatus {
   log: string[];
 }
 
-// "Bring to home" (hold the pose the arm is in right now) -- live mode only.
-// Same process-run shape as InsertionStatus.
-export type HomeStatus = InsertionStatus;
+// "Bring to home" -- move the arm to the defined HOME pose (live mode only).
+// Same process-run shape as InsertionStatus, plus the target XYZ.
+export interface HomeStatus extends InsertionStatus {
+  home_xyz?: number[]; // [x, y, z] target in the base frame (m)
+}
 
 // Arm bringup relaunch (live mode only): stop + relaunch franka.launch.py +
 // the gripper node, clear reflex, verify mode 2 + /panda_gripper/move.
@@ -120,6 +122,33 @@ export interface BringupStatus {
   mode_ok: boolean; // robot_mode == 2 (Move)
   gripper_ok: boolean; // /panda_gripper/move present
   ok: boolean | null; // result of the last relaunch (null = none yet)
+  error: string | null;
+  elapsed_s: number | null;
+  log: string[];
+}
+
+// FCI on/off (live mode only): toggle the Franka Control Interface over the
+// Desk HTTP API. fci_active is best-effort (null = unknown until first toggle);
+// awaiting_button is true while a forced take-control waits for a physical tap.
+export interface FciStatus {
+  enabled: boolean; // true only in live mode
+  busy: boolean; // an activate/deactivate is in progress
+  awaiting_button: boolean; // waiting for the physical button tap on the robot
+  fci_active: boolean | null; // tracked FCI state (null = unknown)
+  last_action: "activate" | "deactivate" | null;
+  ok: boolean | null; // result of the last toggle (null = none yet)
+  error: string | null;
+  host: string;
+  elapsed_s: number | null;
+  log: string[];
+}
+
+// Gripper open/close (live mode only): Open -> Move, Close -> Grasp (with force).
+export interface GripperStatus {
+  enabled: boolean; // true only in live mode
+  busy: boolean; // a move/grasp is in progress
+  last_action: "open" | "close" | null;
+  ok: boolean | null; // result of the last action (null = none yet)
   error: string | null;
   elapsed_s: number | null;
   log: string[];
@@ -143,7 +172,16 @@ export interface Config {
   workspace_aabb?: number[][];
   cameras: Record<
     string,
-    { label: string; size: [number, number]; kind: string; overlay?: string }
+    {
+      label: string;
+      size: [number, number];
+      kind: string;
+      overlay?: string;
+      // Enforced workspace AABB projected into this camera's pixels (overhead
+      // C920 only): 4 corners [[u,v],...] in the source frame, or null/absent
+      // when no calibration is available.
+      workspace_px?: [number, number][] | null;
+    }
   >;
 }
 

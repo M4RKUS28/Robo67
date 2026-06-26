@@ -83,6 +83,7 @@ from robo67_insertion.lib.pixel_mapping import (  # noqa: E402
     MappingContext,
     PixelObservation,
 )
+from robo67_insertion.config_schema import real_arm_workspace_aabb_flat  # noqa: E402
 from robo67_insertion.nodes import hardware_insertion_node as hin  # noqa: E402
 
 
@@ -468,8 +469,9 @@ def build_parser():
                     help="abort cap on each moment axis (Nm); raise for a lateral spiral search")
     ap.add_argument("--watchdog-s", type=float, default=0.25)
     ap.add_argument("--workspace-aabb", type=float, nargs=6,
-                    default=[0.20, 0.65, -0.40, 0.40, 0.02, 0.60],
-                    help="xmin xmax ymin ymax zmin zmax (m)")
+                    default=real_arm_workspace_aabb_flat(),
+                    help="xmin xmax ymin ymax zmin zmax (m); default = "
+                         "config_schema.REAL_ARM_WORKSPACE_AABB")
 
     # release-on-insert (open gripper on the bore z-drop, then retract empty)
     ap.add_argument("--release-on-insert", action="store_true",

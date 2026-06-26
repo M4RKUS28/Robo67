@@ -28,15 +28,18 @@ CLI), which hands off to `robo67_insertion/nodes/hardware_insertion_node.py`
    → **Confirm** (it commands the real arm). **Stop** cancels at any time.
    - The button is **live-mode only**; in mock mode it shows `insertion · live-only`.
    - Status chip shows `inserting · Ns` and the latest log line while running.
+   - If a started run **fails** (force/torque abort, setup error, bringup crash —
+     anything that ends without seating the peg and isn't a user Stop), a recovery
+     dialog pops up with one **Relaunch & restart insertion** action: it relaunches
+     the arm and, once it verifies Move, restarts the insertion automatically. See §7.4.
 3. If the bringup ever crashes / goes Idle / trips a reflex (see §4/§5), hit the
    **Relaunch arm** button (header, left of Start insertion) → **Confirm**. It
    stops + relaunches `franka.launch.py` and the gripper node, clears a reflex,
    and verifies Move (2) + `/panda_gripper/move` — the §5 clean-restart, one click.
    See §7.1.
-4. **Home** button (header, next to Relaunch arm) → **Confirm**: holds the pose
-   the arm is in **right now** (re-anchors the controller equilibrium at the
-   current EE; ~no net motion). Use it to settle the soft controller after a
-   relaunch / nudge / drift. See §7.2.
+4. **Home** button (header, next to Relaunch arm) → **Confirm**: **moves** the arm
+   to the defined HOME pose (a fixed taught start position, tool-down vertical).
+   Use it to restore the start position after working / jogging the arm. See §7.2.
 5. The **Logs** tab shows the live stdout of all three managed runs (insertion,
    arm relaunch, home) — the same ring-buffered output the status chips summarise.
 
@@ -258,23 +261,25 @@ be running inside the container with ROS sourced, so it can spawn `ros2 launch`)
 
 ### 7.2 Home-control internals
 
-The **Home** button holds the pose the arm is in **right now** — "home" is not a
-fixed configuration, it is whatever pose is current when you press it. The
-commanded equilibrium is re-anchored to the current measured EE, so the arm
-settles exactly where it is (≈ no net motion). Confirm-gated, **live-mode only**.
+The **Home** button **moves** the arm to a defined HOME pose — a FIXED taught
+start position (hand-guide the arm to a good default, read its EE, hard-code it),
+NOT the current pose. Use it to restore the start position after working/jogging.
+Confirm-gated (real motion), **live-mode only**.
 
 - `dashboard/server/home_control.py` — `HomeController.run()` spawns
-  `scripts/hw_cartesian_hold.py --secs 4.0 --cmd-mode auto` (own process group,
-  ring-buffered stdout, one at a time). The script reads one `FrankaState`,
-  captures the current EE as the hold target, and streams it as the desired pose
-  on the auto-detected command path (the real-arm subscriber path). The cartesian
-  impedance controller retains the last commanded equilibrium after the process
-  exits, so a short hold is enough to re-anchor. Hold duration is env-overridable
-  (`ROBO67_HOME_HOLD_S`).
+  `scripts/hw_move_to.py --xyz <HOME> --tool-down --speed 0.02 --cmd-mode auto`
+  (own process group, ring-buffered stdout, one at a time). `hw_move_to` does a
+  gentle time-parameterised ramp + overshoot settle to the target XYZ with a
+  vertical (z-down, yaw-preserving) orientation, with the workspace AABB clamp +
+  force/reflex aborts. The HOME pose is hard-coded (`_DEFAULT_HOME_XYZ`, captured
+  live from the operator's taught default `≈ (0.2145, -0.0278, 0.4451)` m base
+  frame) and **env-overridable** with `ROBO67_HOME_XYZ="x y z"`. `status()`
+  reports `home_xyz` so the UI can show the target.
 - `dashboard/server/serve.py` — `POST /api/home/run`, `POST /api/home/stop`
   (SIGINT), `GET /api/home/status`.
-- `dashboard/web/src/components/HomeControl.tsx` — confirm-gated **Home** button +
-  `homing · Ns` chip, polling `/api/home/status` at 1 Hz.
+- `dashboard/web/src/components/HomeControl.tsx` — confirm-gated **Home** button
+  (the confirm shows the target XYZ) + `homing · Ns` chip, polling
+  `/api/home/status` at 1 Hz.
 
 ### 7.3 Logs page
 
@@ -283,3 +288,26 @@ settles exactly where it is (≈ no net motion). Confirm-gated, **live-mode only
 showing the ring-buffered stdout of the corresponding managed subprocess (from
 `/api/{insertion,bringup,home}/status`), polled at 1 Hz, newest line stuck to the
 bottom, with a running/elapsed/outcome chip. Populates in **live mode** only.
+
+### 7.4 Insertion-failure recovery dialog
+
+`dashboard/web/src/components/InsertionFailureModal.tsx` (mounted once in the
+AppShell) watches `/api/insertion/status`. When a run it observed **start** then
+**ends without succeeding** and wasn't a user Stop, it pops a modal with one
+combined recovery action: **Relaunch & restart insertion**.
+
+- **Why log-classified, not exit-code-classified**: `run_ros` returns **0 even on
+  a force/torque abort** (it just holds + tries error recovery), so `last_exit`
+  alone misses the most common failure. The modal instead checks the captured
+  stdout: **success** = `release-on-insert complete` / `sequence finished`;
+  **user Stop** = `STOP requested`; anything else after a run we saw running =
+  **failure**. The shown reason prefers the cause line (`FORCE ABORT` / `[ERROR]`
+  / `refusing…`) over the generic `exited (rc=N)` footer.
+- **One action, two steps**: clicking **Relaunch & restart insertion** does
+  `POST /api/bringup/relaunch`, then polls `/api/bringup/status` until the
+  sequence finishes (showing the live phase). **Only if it verifies OK**
+  (Move + `/panda_gripper/move`) does it then `POST /api/insertion/start` and
+  close the dialog (the new run shows in the header chip). If the relaunch
+  fails/times out it stops there, surfaces the error, and offers **Retry** (it
+  does NOT blindly restart insertion onto a still-broken arm). **Dismiss** / ✕
+  closes it. Live mode only (no run ⇒ no popup).

@@ -89,22 +89,38 @@ ROSENV
 echo "[run_live] $CONTAINER -> logging graph (socket_top_z=${SOCKET_TOP_Z}, gripper=${GRIPPER})"
 echo "[run_live] $CONTAINER -> live dashboard on http://127.0.0.1:$DASH_PORT (Ctrl-C to stop)"
 
-# kill all logging graph processes (launch parent + spawned nodes). ros2 launch
-# does not reliably propagate SIGTERM to its children, so we pkill each node.
-# NB: match the INSTALLED console-script names (lib/robo67_insertion/<name>),
-# NOT the *_node source filenames — the running processes are named after the
-# entry_points (camera_publisher, socket_detector, d405_servo).
+# Abort every logging-graph process (launch parent + spawned camera/detector
+# nodes), escalating SIGTERM -> SIGKILL and only returning once they are gone.
+#
+# Two subtleties this guards against:
+#  * SELF-MATCH: the kill pattern must NOT appear in this helper's own command
+#    line. The container shares the host PID namespace, so `pkill -f` sees the
+#    docker-exec/shell running it; if the pattern were in argv/env, pkill would
+#    kill its own cleanup shell before reaching the actual nodes -- which is why
+#    logging nodes kept surviving across runs. So we feed the pattern over STDIN
+#    (a quoted heredoc to `bash -s`); pkill/pgrep already skip their own PIDs.
+#  * STUCK NODES: a camera_publisher blocked in cv2.read() on a hung V4L2 device
+#    (the D405 throws select() timeouts) can't run its Python SIGTERM handler
+#    until the syscall returns, so plain SIGTERM leaves it alive. We wait briefly
+#    for a clean exit, then SIGKILL (uncatchable) any survivor.
+# The pattern matches the INSTALLED console-script names
+# (lib/robo67_insertion/<entry_point>), NOT the *_node source filenames.
 _kill_logging() {
-  docker exec "$CONTAINER" bash -c "
-    pkill -f 'logging.launch.py' 2>/dev/null || true
-    pkill -f 'lib/robo67_insertion/(camera_publisher|socket_detector|d405_servo)' 2>/dev/null || true
-  " 2>/dev/null || true
+  docker exec -i "$CONTAINER" bash -s >/dev/null 2>&1 <<'KILL' || true
+pat='logging.launch.py|lib/robo67_insertion/(camera_publisher|socket_detector|d405_servo)'
+pkill -TERM -f "$pat" || true
+for _ in $(seq 1 10); do
+  pgrep -f "$pat" >/dev/null 2>&1 || exit 0
+  sleep 0.2
+done
+pkill -KILL -f "$pat" || true
+KILL
 }
 
 # clean up any stale nodes from a previous run BEFORE launching (otherwise the
-# new launch would race against leftovers holding /dev/videoN).
+# new launch would race against leftovers holding /dev/videoN). _kill_logging
+# blocks until they are actually gone, so the new graph starts from a clean slate.
 _kill_logging
-sleep 0.5
 
 # --- start logging graph in background (separate docker exec) ---------------
 docker exec -i \

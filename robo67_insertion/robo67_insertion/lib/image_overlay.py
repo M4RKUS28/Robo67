@@ -29,7 +29,8 @@ __all__ = [
 ]
 
 # BGR colours (OpenCV order).
-_GREEN = (80, 220, 90)
+_GREEN = (0, 255, 0)     # bright green — detection rectangle / crosshair / label
+_RED = (0, 0, 255)       # bright red — centre (hole) marker
 _AMBER = (40, 170, 250)
 _FAINT = (90, 90, 90)
 
@@ -51,19 +52,32 @@ def _put_label(img: np.ndarray, text: str, org: Tuple[int, int],
                 cv2.LINE_AA)
 
 
+def _bbox(hole: Hole, w: int, h: int) -> Tuple[int, int, int, int]:
+    """Axis-aligned bounding box (x0, y0, x1, y1) of a detection, clamped to
+    the frame. The detector reports a centre + enclosing radius, so the box is
+    the square that circumscribes that circle."""
+    u, v, r = int(hole.u), int(hole.v), max(4, int(hole.radius_px))
+    x0 = max(0, u - r)
+    y0 = max(0, v - r)
+    x1 = min(w - 1, u + r)
+    y1 = min(h - 1, v + r)
+    return x0, y0, x1, y1
+
+
 def draw_socket_overlay(
     bgr: np.ndarray,
     holes: Sequence[Hole],
     *,
     color: Tuple[int, int, int] = _GREEN,
-    label: str = "socket",
+    label: str = "hole",
     base_xy: Optional[Tuple[float, float]] = None,
 ) -> np.ndarray:
-    """Annotate an overhead frame with the detected socket(s).
+    """Annotate an overhead frame with the detected hole(s).
 
-    The best (first) hole gets a full-frame crosshair, a detection ring, a
-    centre dot, and a text label (score, and the mapped base XY when known).
-    Any further holes get a thin secondary ring. Returns a new BGR image.
+    The best (first) detection gets a full-frame crosshair, a bounding
+    **rectangle** around it, a centre dot, and a text label (score, and the
+    mapped base XY when known). Any further detections get a thin secondary
+    rectangle. Returns a new BGR image (input never mutated).
     """
     out = _as_bgr(bgr)
     if not holes:
@@ -72,22 +86,23 @@ def draw_socket_overlay(
 
     # secondary detections first (so the primary draws on top)
     for hole in holes[1:]:
-        cv2.circle(out, (int(hole.u), int(hole.v)),
-                   max(3, int(hole.radius_px)), _FAINT, 1, cv2.LINE_AA)
+        sx0, sy0, sx1, sy1 = _bbox(hole, w, h)
+        cv2.rectangle(out, (sx0, sy0), (sx1, sy1), _FAINT, 1, cv2.LINE_AA)
 
     best = holes[0]
-    u, v, r = int(best.u), int(best.v), max(4, int(best.radius_px))
-    # faint full-frame crosshair through the detection
+    u, v = int(best.u), int(best.v)
+    x0, y0, x1, y1 = _bbox(best, w, h)
+    # faint full-frame crosshair through the detection centre
     cv2.line(out, (u, 0), (u, h), color, 1, cv2.LINE_AA)
     cv2.line(out, (0, v), (w, v), color, 1, cv2.LINE_AA)
-    # detection ring + centre dot
-    cv2.circle(out, (u, v), r, color, 2, cv2.LINE_AA)
-    cv2.circle(out, (u, v), 2, color, -1, cv2.LINE_AA)
+    # detection rectangle (thick, bright green) + centre/hole marker (bright red)
+    cv2.rectangle(out, (x0, y0), (x1, y1), color, 5, cv2.LINE_AA)
+    cv2.circle(out, (u, v), 7, _RED, -1, cv2.LINE_AA)
 
     txt = f"{label} {best.score:.2f}"
     if base_xy is not None:
         txt += f"  base ({base_xy[0]:+.3f}, {base_xy[1]:+.3f})"
-    _put_label(out, txt, (u + r + 6, v - r - 6), color)
+    _put_label(out, txt, (x1 + 6, y0 - 6), color)
     return out
 
 

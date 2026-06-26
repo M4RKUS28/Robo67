@@ -58,7 +58,11 @@ import time
 # numpy is required for the libs; import lazily-friendly but it is always present.
 import numpy as np
 
-from robo67_insertion.config_schema import TopicsCfg, load_config
+from robo67_insertion.config_schema import (
+    TopicsCfg,
+    load_config,
+    real_arm_workspace_aabb_flat,
+)
 from robo67_insertion.lib.command_path_adapters import ImpedanceCommandPathAdapter
 from robo67_insertion.lib.contact_lifecycle import ContactLifecycleModule
 from robo67_insertion.lib.insertion_intent import PHASES, IntentParams, IntentSensors
@@ -827,8 +831,9 @@ def build_parser():
                          "constant peg-weight/model offset (~few Nm) counts against it")
     ap.add_argument("--watchdog-s", type=float, default=0.25)
     ap.add_argument("--workspace-aabb", type=float, nargs=6,
-                    default=[0.20, 0.65, -0.40, 0.40, 0.02, 0.60],
-                    help="xmin xmax ymin ymax zmin zmax (m)")
+                    default=real_arm_workspace_aabb_flat(),
+                    help="xmin xmax ymin ymax zmin zmax (m); default = "
+                         "config_schema.REAL_ARM_WORKSPACE_AABB")
     return ap
 
 

@@ -108,12 +108,25 @@ coarse `robot_mode` until telemetry arrives.
 | `GET /api/bringup/status` | arm-bringup relaunch status (`busy`, `phase`, `robot_mode`, `mode_ok`, `gripper_ok`, `ok`, `log`) |
 | `POST /api/bringup/relaunch` | stop + relaunch `franka.launch.py` + gripper, clear reflex, verify Move (2) + `/panda_gripper/move` — **live mode only** |
 | `GET /api/home/status` | "bring to home" run status (`enabled`, `running`, `elapsed_s`, `last_exit`, `log`) |
-| `POST /api/home/run` · `POST /api/home/stop` | hold the pose the arm is in right now (`hw_cartesian_hold.py`) / SIGINT it — **live mode only** |
+| `POST /api/home/run` · `POST /api/home/stop` | move the arm to the defined HOME pose (`hw_move_to.py`, tool-down) / SIGINT it — **live mode only** |
+| `GET /api/fci/status` | FCI on/off status (`enabled`, `busy`, `awaiting_button`, `fci_active`, `ok`, `log`) |
+| `POST /api/fci/activate` · `POST /api/fci/deactivate` | toggle the FCI over the Desk HTTP API (`fci_control.py` → `desk_client.py`; Confirm-gated) — **live mode only** |
+| `GET /api/gripper/status` | gripper open/close status (`enabled`, `busy`, `last_action`, `ok`, `log`) |
+| `POST /api/gripper/open` · `POST /api/gripper/close` | Open = `franka_msgs/action/Move`, Close = `franka_msgs/action/Grasp` (grip force) via `ros2 action send_goal` — **live mode only** |
 
-The header controls (live mode only): **Relaunch arm** (`bringup_control.py`),
-**Home** = hold the current pose (`home_control.py` → `hw_cartesian_hold.py`),
+The header controls (live mode only): **Activate/Deactivate FCI**
+(`fci_control.py` → `desk_client.py`, Confirm-gated; a forced control hand-off
+needs a physical button tap on the robot), **Relaunch arm**
+(`bringup_control.py`), **Home** = move to the defined HOME pose (`home_control.py` →
+`hw_move_to.py`), **Open / Close** gripper (`gripper_control.py`),
 **Start insertion / Stop** (`insertion_control.py`). The **Logs** page
-(`/logs`) shows the ring-buffered stdout of all three managed runs.
+(`/logs`) shows the ring-buffered stdout of the managed runs.
+
+FCI credentials/host are env-overridable: `ROBO67_DESK_HOST` (defaults to
+`ROBO67_ROBOT_IP` / `192.168.1.67`), `ROBO67_DESK_USER` (`franka`),
+`ROBO67_DESK_PASS` (`frankaRSI`). The Desk client is **pure stdlib** (no
+`panda_py` / `requests` dep) and `ROS_LOCALHOST_ONLY=1` does not block it
+(it affects DDS, not the TCP/HTTPS link to the robot).
 
 Telemetry is pushed over plain Server-Sent Events and cameras over MJPEG, so the
 backend needs **no** extra Python packages (no FastAPI/uvicorn/websockets) and

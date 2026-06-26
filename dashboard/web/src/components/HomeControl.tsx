@@ -3,10 +3,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LocateFixed, Loader2, AlertTriangle } from "lucide-react";
 import { useHomeStatus, runHome } from "../api/queries";
 
-// "Bring to home" (live mode only): capture the pose the arm is in RIGHT NOW
-// and command the controller to hold it (re-anchors the equilibrium at the
-// current measured EE -- ~no net motion). The server runs hw_cartesian_hold.py.
-// It commands the real arm, so it goes through a confirm step.
+// "Home" (live mode only): MOVE the arm to the defined HOME pose (a fixed taught
+// start position, tool-down vertical) via hw_move_to.py. It commands real arm
+// motion, so it goes through a confirm step.
 export function HomeControl() {
   const status = useHomeStatus();
   const qc = useQueryClient();
@@ -17,6 +16,10 @@ export function HomeControl() {
   const st = status.data;
   const enabled = st?.enabled ?? false;
   const running = st?.running ?? false;
+  const home = st?.home_xyz;
+  const homeStr = home && home.length === 3
+    ? `${home[0].toFixed(2)}, ${home[1].toFixed(2)}, ${home[2].toFixed(2)}`
+    : null;
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["home-status"] });
 
@@ -55,7 +58,9 @@ export function HomeControl() {
         </span>
       ) : confirm ? (
         <>
-          <span className="text-xs font-medium text-amber-300">Hold the current pose?</span>
+          <span className="text-xs font-medium text-amber-300">
+            Move the arm to home{homeStr ? ` (${homeStr})` : ""}?
+          </span>
           <button
             onClick={doRun}
             disabled={busy}
@@ -78,7 +83,7 @@ export function HomeControl() {
             setConfirm(true);
           }}
           className="flex items-center gap-1.5 rounded-md bg-ink-700 px-3 py-1.5 text-xs font-semibold text-slate-100 transition-colors hover:bg-ink-600"
-          title="Hold the pose the arm is in right now (re-anchor the controller equilibrium at the current EE)"
+          title={`Move the arm to the defined home pose${homeStr ? ` (${homeStr})` : ""}, tool-down vertical`}
         >
           <LocateFixed size={13} /> Home
         </button>
