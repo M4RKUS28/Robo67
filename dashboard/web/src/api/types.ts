@@ -96,6 +96,7 @@ export interface Health {
 export interface InsertionStatus {
   enabled: boolean; // true only in live mode
   running: boolean;
+  force_mode?: boolean; // current/last run used --force-mode (admittance press)
   pid: number | null;
   elapsed_s: number | null;
   last_exit: number | null;
@@ -139,6 +140,7 @@ export interface FciStatus {
   ok: boolean | null; // result of the last toggle (null = none yet)
   error: string | null;
   host: string;
+  take_timeout_s: number; // seconds allowed for the physical button confirm
   elapsed_s: number | null;
   log: string[];
 }

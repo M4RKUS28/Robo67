@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Play, Square, Loader2, AlertTriangle } from "lucide-react";
+import { Play, Square, Loader2, AlertTriangle, Gauge } from "lucide-react";
 import { useInsertionStatus, startInsertion, stopInsertion } from "../api/queries";
 
 // Start / Stop the automated peg-in-hole insertion (live mode only). The server
@@ -13,10 +13,14 @@ export function InsertionControl() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
+  // force-guided mode: regulate a constant gentle press (admittance) + detect
+  // insertion from the force-slacken (ADR-0002). Off = verified fixed behavior.
+  const [forceMode, setForceMode] = useState(false);
 
   const st = status.data;
   const enabled = st?.enabled ?? false;
   const running = st?.running ?? false;
+  const runningForce = running && (st?.force_mode ?? false);
   const lastLog = st?.log?.length ? st.log[st.log.length - 1] : null;
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["insertion-status"] });
@@ -25,7 +29,7 @@ export function InsertionControl() {
     setBusy(true);
     setErr(null);
     try {
-      const r = await startInsertion();
+      const r = await startInsertion(forceMode);
       if (!r.ok) setErr(r.error ?? "start failed");
     } catch (e) {
       setErr(String(e));
@@ -69,6 +73,16 @@ export function InsertionControl() {
             <Loader2 size={12} className="animate-spin" />
             inserting{st?.elapsed_s != null ? ` · ${st.elapsed_s.toFixed(0)}s` : ""}
           </span>
+          <span
+            className={`chip ${runningForce ? "bg-sky-500/20 text-sky-300" : "bg-slate-500/15 text-slate-400"}`}
+            title={
+              runningForce
+                ? "Running in force-guided mode (admittance press + force-slacken detect, ADR-0002)"
+                : "Running in the verified fixed-equilibrium mode"
+            }
+          >
+            <Gauge size={12} /> {runningForce ? "force mode" : "fixed mode"}
+          </span>
           <button
             onClick={doStop}
             disabled={busy}
@@ -80,7 +94,9 @@ export function InsertionControl() {
         </>
       ) : confirm ? (
         <>
-          <span className="text-xs font-medium text-amber-300">Move the real arm?</span>
+          <span className="text-xs font-medium text-amber-300">
+            Move the real arm? ({forceMode ? "force mode" : "fixed mode"})
+          </span>
           <button
             onClick={doStart}
             disabled={busy}
@@ -97,16 +113,30 @@ export function InsertionControl() {
           </button>
         </>
       ) : (
-        <button
-          onClick={() => {
-            setErr(null);
-            setConfirm(true);
-          }}
-          className="flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-500"
-          title="Run the full automated insertion (detect → move above → contact → spiral → release)"
-        >
-          <Play size={13} /> Start insertion
-        </button>
+        <>
+          <button
+            onClick={() => setForceMode((v) => !v)}
+            aria-pressed={forceMode}
+            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+              forceMode
+                ? "bg-sky-500/20 text-sky-300 hover:bg-sky-500/30"
+                : "bg-ink-700 text-slate-400 hover:bg-ink-600"
+            }`}
+            title="Force-guided mode (ADR-0002): regulate a constant gentle press (admittance) and detect insertion from the force-slacken — under-pressed presses in, over-pressed eases off. Off = verified fixed-equilibrium behavior."
+          >
+            <Gauge size={13} /> Force mode {forceMode ? "on" : "off"}
+          </button>
+          <button
+            onClick={() => {
+              setErr(null);
+              setConfirm(true);
+            }}
+            className="flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-emerald-500"
+            title="Run the full automated insertion (detect → move above → contact → spiral → release)"
+          >
+            <Play size={13} /> Start insertion
+          </button>
+        </>
       )}
 
       {err && (

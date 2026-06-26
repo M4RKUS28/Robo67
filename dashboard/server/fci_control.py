@@ -185,6 +185,7 @@ class FciController:
                 "ok": self._ok,
                 "error": self._error,
                 "host": self._host,
+                "take_timeout_s": TAKE_CONTROL_TIMEOUT,
                 "elapsed_s": (round(time.time() - started, 1)
                               if (busy and started is not None) else None),
                 "log": list(self._log),

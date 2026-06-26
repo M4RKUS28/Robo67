@@ -11,6 +11,7 @@ import { BringupControl } from "./BringupControl";
 import { HomeControl } from "./HomeControl";
 import { FciControl } from "./FciControl";
 import { GripperControl } from "./GripperControl";
+import { FciButtonModal } from "./FciButtonModal";
 import { InsertionFailureModal } from "./InsertionFailureModal";
 
 const NAV = [
@@ -117,6 +118,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <main className="flex-1 pb-6">{children}</main>
+
+      {/* prominent prompt while the FCI flow waits for the physical button tap */}
+      <FciButtonModal />
 
       {/* global recovery dialog when a started insertion run fails */}
       <InsertionFailureModal />

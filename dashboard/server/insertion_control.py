@@ -59,6 +59,7 @@ class InsertionController:
         self._proc: Optional[subprocess.Popen] = None
         self._started_at: Optional[float] = None
         self._last_exit: Optional[int] = None
+        self._force_mode: bool = False   # whether the current/last run used --force-mode
         self._log: "collections.deque[str]" = collections.deque(maxlen=log_lines)
 
     # -- internal -------------------------------------------------------
@@ -77,14 +78,20 @@ class InsertionController:
         self._log.append(f"[dashboard] insertion process exited (rc={rc})")
 
     # -- public API -----------------------------------------------------
-    def start(self, extra_args: Optional[List[str]] = None) -> Dict:
+    def start(self, force_mode: bool = False,
+              extra_args: Optional[List[str]] = None) -> Dict:
         if not self.enabled:
             return {"ok": False, "error": "insertion control is live-mode only"}
         with self._lock:
             if self._running():
                 return {"ok": False, "error": "insertion already running",
                         "pid": self._proc.pid}  # type: ignore[union-attr]
-            cmd = ["python3", "-u", VISION_SCRIPT] + DEFAULT_ARGS + list(extra_args or [])
+            # force_mode = regulate a constant gentle press + force-slacken detect
+            # (ADR-0002); keeps the verified --press-force/etc. for now.
+            mode_args = ["--force-mode"] if force_mode else []
+            cmd = (["python3", "-u", VISION_SCRIPT] + DEFAULT_ARGS
+                   + mode_args + list(extra_args or []))
+            self._force_mode = bool(force_mode)
             self._log.clear()
             self._last_exit = None
             try:
@@ -133,6 +140,7 @@ class InsertionController:
             return {
                 "enabled": self.enabled,
                 "running": running,
+                "force_mode": self._force_mode,
                 "pid": (self._proc.pid if (self._proc and running) else None),
                 "elapsed_s": (round(time.time() - self._started_at, 1)
                               if (running and self._started_at is not None) else None),

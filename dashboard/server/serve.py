@@ -112,13 +112,19 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path
         try:
-            # drain any request body (we don't require params; defaults are the
-            # verified-live set)
+            # read any request body (most actions need none; insertion start
+            # accepts an optional {"force_mode": bool})
             n = int(self.headers.get("Content-Length", 0) or 0)
-            if n:
-                self.rfile.read(n)
+            raw = self.rfile.read(n) if n else b""
             if path == "/api/insertion/start":
-                return self._send_json(self._insertion().start())
+                force_mode = False
+                if raw:
+                    try:
+                        force_mode = bool(json.loads(raw.decode("utf-8") or "{}")
+                                          .get("force_mode", False))
+                    except Exception:  # noqa: BLE001
+                        force_mode = False
+                return self._send_json(self._insertion().start(force_mode=force_mode))
             if path == "/api/insertion/stop":
                 return self._send_json(self._insertion().stop())
             if path == "/api/bringup/relaunch":

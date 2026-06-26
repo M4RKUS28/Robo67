@@ -15,8 +15,13 @@ async function getJSON<T>(url: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-async function postJSON<T>(url: string): Promise<T> {
-  const res = await fetch(url, { method: "POST" });
+async function postJSON<T>(url: string, body?: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    ...(body !== undefined
+      ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }
+      : {}),
+  });
   if (!res.ok) throw new Error(`${url} -> ${res.status}`);
   return (await res.json()) as T;
 }
@@ -48,8 +53,11 @@ export function useInsertionStatus() {
   });
 }
 
-export function startInsertion() {
-  return postJSON<{ ok: boolean; error?: string; pid?: number }>("/api/insertion/start");
+export function startInsertion(forceMode = false) {
+  return postJSON<{ ok: boolean; error?: string; pid?: number }>(
+    "/api/insertion/start",
+    { force_mode: forceMode },
+  );
 }
 
 export function stopInsertion() {
