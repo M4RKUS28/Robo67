@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Wrench, X, Loader2 } from "lucide-react";
 import { useInsertionStatus, relaunchBringup, startInsertion } from "../api/queries";
+import { useControls } from "../state/ControlsProvider";
 import type { BringupStatus } from "../api/types";
 
 // A healthy run logs one of these; their ABSENCE (for a run that wasn't a user
@@ -54,6 +55,7 @@ async function waitRelaunchDone(onPhase: (p: string) => void): Promise<BringupSt
 // Mounted once in the AppShell so the modal overlays the whole app.
 export function InsertionFailureModal() {
   const status = useInsertionStatus();
+  const { insertion } = useControls();
   const qc = useQueryClient();
   const st = status.data;
   const enabled = st?.enabled ?? false;
@@ -112,9 +114,10 @@ export function InsertionFailureModal() {
         setErr(done.error ?? `relaunch failed (mode ${done.robot_mode_label})`);
         return;
       }
-      // relaunch verified (Move + gripper) -> start the insertion automatically
+      // relaunch verified (Move + gripper) -> start the insertion automatically,
+      // honoring the dock's force-mode toggle (defaults to force on).
       setStage("Starting insertion…");
-      const s = await startInsertion();
+      const s = await startInsertion(insertion.forceMode);
       qc.invalidateQueries({ queryKey: ["insertion-status"] });
       if (!s.ok) {
         setErr(s.error ?? "insertion failed to start");

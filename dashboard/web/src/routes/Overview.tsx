@@ -24,9 +24,9 @@ export function Overview() {
     <div className="space-y-3">
       <PhaseTimeline current={latest?.phase ?? "UNKNOWN"} error={latest?.abort} />
 
-      <div className="grid gap-3 lg:grid-cols-3">
-        {/* left: cameras + charts */}
-        <div className="space-y-3 lg:col-span-2">
+      <div className="grid gap-3 lg:grid-cols-[3fr_1fr]">
+        {/* left: cameras + charts (wider so the feeds are larger) */}
+        <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <CameraPanel
               camId="c920"
