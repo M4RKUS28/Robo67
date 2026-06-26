@@ -96,27 +96,35 @@ loop), the C920→base homography + its calibration tool.
 
 ## Phases & tasks
 
-### Phase 0 — Live scene capture (vision groundwork)
-- [ ] Confirm overhead `camera_publisher` is up (or grab the C920 device directly); save a
+### Phase 0 — Live scene capture (vision groundwork) ✅
+- [x] Confirm overhead `camera_publisher` is up (or grab the C920 device directly); save a
       current overhead frame to `robo67_insertion/captures/` and confirm WITH THE USER
-      which object is the target gray box.
-- [ ] Save 2–3 representative frames (lighting/box-position variation) as detector fixtures.
+      which object is the target gray box. (`captures/overhead_live_cable.jpg`; target =
+      bottom-center dark industrial I/O box, target port = a LAN/RJ45 jack.)
+- [x] Save representative frame as a detector fixture (`test/fixtures/c920_io_box.jpg`).
 
-### Phase 1 — Gray-box detector (overhead, pure, TDD)
-- [ ] `lib/box_detect.py`: `Box` dataclass + `BoxParams` + `detect_gray_box(bgr)`.
-- [ ] `test/test_box_detect.py`: synthetic gray quad + the saved live frames; assert
-      centroid within tolerance and rejection of carpet/socket/arm.
-- [ ] Overlay support (reuse `image_overlay` patterns) for the box quad + centroid.
-- [ ] Map box centroid → base XY through the existing C920 homography (`HomographyMappingAdapter`).
+### Phase 1 — Gray-box detector (overhead, pure, TDD) ✅
+- [x] `lib/box_detect.py`: `Box` dataclass + `BoxParams` + `detect_gray_box(bgr)`
+      (local-texture-energy detector — box body ≈ carpet brightness, so texture not
+      intensity is the discriminator).
+- [x] `test/test_box_detect.py`: synthetic busy rectangle + the real fixture; asserts
+      centroid within tolerance and rejection of uniform carpet; picks the busier blob.
+- [x] Overlay support: `draw_box_overlay` (oriented quad + centroid + base-XY label).
+- [x] Map box centroid → base XY through the existing C920 homography (`HomographyMappingAdapter`).
 
-### Phase 2 — Box detector node + overhead pose
-- [ ] `nodes/box_detector_node.py` (or `socket_detector_node` `kind="box"`): subscribe to
-      `cam_overhead_raw`, publish box pose + overlay feed.
-- [ ] Wire into `launch/logging.launch.py` behind a flag.
+### Phase 2 — Box detector node + overhead pose ✅
+- [x] `nodes/box_detector_node.py`: subscribe to `cam_overhead_raw` (BEST_EFFORT
+      `camera_qos`), publish `box_pose` + `box_detection` + overlay feed.
+- [x] Wire into `launch/logging.launch.py` behind `detector:=socket|box`.
+- [x] Live smoke test in `multipanda-container`: locks onto the I/O box, publishes
+      `box_pose ≈ (0.466, -0.231, taught_z)`.
 
-### Phase 3 — MOVE_ABOVE the box
-- [ ] Runner stage: command tool-down pose ~10 cm above box center (reuse `hw_move_to` /
-      `run_ros` MOVE_ABOVE). Dry-run + selftest first.
+### Phase 3 — MOVE_ABOVE the box 🔲 (selftest + dry-run done; LIVE move pending)
+- [x] `scripts/hw_cable_insertion_vision.py`: perceive box (overhead) → compute tool-down
+      target ~10 cm above box center → move via `hw_move_to.Mover` (ROS imports lazy so
+      `--selftest` runs offline). Offline `--selftest` PASS; live `--dry-run` PASS
+      (perceived base XY (0.467, -0.231), target (0.467, -0.231, 0.20), published nothing).
+- [ ] LIVE move-above on the real arm (needs FCI active, area clear, e-stop in hand).
 
 ### Phase 4 — D405 hand-eye calibration (NEW)
 - [ ] `lib/handeye.py`: pure `cv2.calibrateHandEye` wrapper + ChArUco/checkerboard board
