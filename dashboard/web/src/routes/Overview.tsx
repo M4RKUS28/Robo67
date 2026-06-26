@@ -35,6 +35,8 @@ export function Overview() {
               available={!!latest}
               detection={latest?.detections.c920}
               accent="#38bdf8"
+              markerShape="rect"
+              workspacePx={camMeta?.c920?.workspace_px}
             />
             <CameraPanel
               camId="d405"

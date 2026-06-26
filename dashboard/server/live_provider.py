@@ -64,6 +64,31 @@ def _o_t_ee_xyz(o_t_ee) -> np.ndarray:
     return np.array([m[12], m[13], m[14]], float)
 
 
+def _workspace_polygon_px(homography_path: str, aabb_xy) -> Optional[list]:
+    """Project the workspace AABB's XY rectangle into overhead-C920 pixels.
+
+    The C920->base homography ``H`` maps pixels to base XY; its inverse maps the
+    four workspace corners back into the image, so the dashboard can draw the
+    enforced box on the overhead feed. Returns ``[[u, v], ...]`` (4 corners,
+    boundary order) in the calibrated frame, or ``None`` if the homography is
+    missing/singular (e.g. mock mode has no calibration). Lines map to lines
+    under a homography, so four corners fully describe the quad.
+    """
+    try:
+        from robo67_insertion.lib.geometry import pixel_to_base
+
+        H = np.load(homography_path)["H"]
+        h_inv = np.linalg.inv(np.asarray(H, float))
+        (xmin, xmax), (ymin, ymax) = aabb_xy[0], aabb_xy[1]
+        corners = [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)]
+        # pixel_to_base applies a homography to (x, y, 1) and divides; feeding it
+        # the INVERSE maps base XY -> pixel (u, v).
+        return [[float(uv[0]), float(uv[1])]
+                for uv in (pixel_to_base(h_inv, np.array(c, float)) for c in corners)]
+    except Exception:
+        return None
+
+
 class LiveProvider:
     name = "live"
 
@@ -82,6 +107,11 @@ class LiveProvider:
         self._cam_size = {"c920": (1280, 720), "c920_overlay": (1280, 720),
                           "d405": (1280, 720), "d405_overlay": (1280, 720)}
         self._cam_jpeg: Dict[str, Optional[bytes]] = {n: None for n in CAM_FEEDS}
+
+        # Workspace overlay: the enforced real-arm AABB + its overhead-C920 pixel
+        # quad (via the calibrated homography), so the dashboard draws exactly the
+        # box the run enforces. Computed once (calibration is static).
+        self._workspace_aabb, self._c920_workspace_px = self._load_workspace()
 
         # ROS-fed state
         self._lock = threading.Lock()
@@ -118,6 +148,28 @@ class LiveProvider:
             return load_config(path) if os.path.exists(path) else RoboConfig()
         except Exception:
             return None
+
+    def _load_workspace(self):
+        """Return ``(aabb_nested, c920_polygon_px)`` for the workspace overlay.
+
+        ``aabb_nested`` is the canonical real-arm AABB
+        (``config_schema.REAL_ARM_WORKSPACE_AABB`` -- the SAME value the run
+        enforces) as ``[[xmin,xmax],[ymin,ymax],[zmin,zmax]]``; the polygon is
+        its XY rectangle projected into overhead-C920 pixels, or ``None`` if the
+        homography is unavailable.
+        """
+        import os
+
+        try:
+            from robo67_insertion.config_schema import REAL_ARM_WORKSPACE_AABB
+
+            aabb = [list(p) for p in REAL_ARM_WORKSPACE_AABB]
+        except Exception:
+            aabb = [[0.15, 0.65], [-0.45, 0.45], [0.02, 0.60]]
+        homography = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+            "robo67_insertion", "config", "c920_homography.npz")
+        return aabb, _workspace_polygon_px(homography, aabb)
 
     def _t(self, attr: str, default: str) -> str:
         """Topic name from config (yaml override) with a hard-coded fallback."""
@@ -296,9 +348,11 @@ class LiveProvider:
             "robot_modes": ROBOT_MODE_LABEL,
             "thresholds": {"contact_fz_n": ct, "f_abort_n": fa,
                            "speed_cap_mps": 0.05, "insert_depth_m": 0.04},
+            "workspace_aabb": self._workspace_aabb,
             "cameras": {
                 "c920": {"label": "C920 overhead", "size": self._cam_size["c920"],
-                          "kind": "static-overhead", "overlay": "c920_overlay"},
+                          "kind": "static-overhead", "overlay": "c920_overlay",
+                          "workspace_px": self._c920_workspace_px},
                 "d405": {"label": "D405 eye-in-hand", "size": self._cam_size["d405"],
                           "kind": "eye-in-hand", "overlay": "d405_overlay"},
             },

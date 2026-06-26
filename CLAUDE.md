@@ -106,18 +106,63 @@ Full doc + problems-encountered + recovery table: [`docs/runbooks/automated-inse
   [`docs/runbooks/automated-insertion.md`](docs/runbooks/automated-insertion.md) §7.1.
 - **Home button**: live dashboard header **Home** (`dashboard/server/home_control.py`;
   `POST /api/home/run`+`/api/home/stop`, `GET /api/home/status`; UI
-  `dashboard/web/src/components/HomeControl.tsx`). Confirm-gated, live-mode only.
-  "Home" = hold the pose the arm is in RIGHT NOW (not a fixed config): spawns
-  `scripts/hw_cartesian_hold.py --secs 4.0 --cmd-mode auto`, which captures the
-  current EE and streams it as the equilibrium so the arm settles where it is
-  (≈ no net motion; the controller retains the last equilibrium after exit). Use
-  it to settle the soft controller after relaunch/nudge/drift. Hold time =
-  `ROBO67_HOME_HOLD_S`. Doc §7.2.
+  `dashboard/web/src/components/HomeControl.tsx`). Confirm-gated (real motion),
+  live-mode only. "Home" = **move** the arm to a FIXED taught start pose (NOT the
+  current pose): spawns `scripts/hw_move_to.py --xyz <HOME> --tool-down --speed
+  0.02 --cmd-mode auto` (gentle ramp + overshoot settle, tool-down vertical,
+  workspace + force/reflex aborts). HOME is hard-coded (`_DEFAULT_HOME_XYZ` ≈
+  `(0.2145, -0.0278, 0.4451)` m, captured live from the operator's taught
+  default), env-overridable via `ROBO67_HOME_XYZ="x y z"`; `status()` returns
+  `home_xyz`. Use it to restore the start position after working/jogging. Doc §7.2.
+- **FCI on/off button**: live dashboard header **Activate/Deactivate FCI**
+  (`dashboard/server/fci_control.py` → `desk_client.py`; `POST
+  /api/fci/{activate,deactivate}`, `GET /api/fci/status`; UI
+  `dashboard/web/src/components/FciControl.tsx`). Confirm-gated, live-mode only.
+  Toggles the Franka Control Interface over the **Desk HTTP API** (the
+  reverse-engineered endpoints behind `https://192.168.1.67/desk/`): login →
+  take control → `POST`/`DELETE /admin/api/control-token/fci`. Pure **stdlib**
+  (`http.client`/`ssl`/`hashlib`/`base64`, no `panda_py`/`requests` dep), so it
+  honors the dashboard's "stdlib + numpy" rule; `ROS_LOCALHOST_ONLY=1` does NOT
+  block it (DDS only, not the TCP/HTTPS link to the robot). **Firmware note
+  (learned the hard way 2026-06-26 via the new FCI log):** this Panda has **no
+  `/admin/api/system-status`** (that's FR3-only → 404); control is checked via
+  **`GET /admin/api/control-token`** (`{activeToken:{id,ownedBy}|null}`), the
+  panda-py `platform='panda'` path. Control is only **forced** (→ physical
+  **circle button** tap, `wait_timeout=ROBO67_FCI_TAKE_TIMEOUT`) when **another
+  user holds control**; when control is **free** the request grants immediately
+  with **no tap**. One persistent Desk session is reused across toggles so
+  flipping FCI on/off does NOT re-ask for the tap. Every Desk step is logged
+  (in-memory ring buffer → `GET /api/fci/status`, the dashboard **Logs**
+  "FCI log" panel, AND stdout as `[fci] …`). FCI active ⇒ Desk UI is locked out
+  (expected). Creds env-overridable: `ROBO67_DESK_HOST` (← `ROBO67_ROBOT_IP`),
+  `ROBO67_DESK_USER` (`franka`), `ROBO67_DESK_PASS` (`frankaRSI`). It only
+  toggles FCI (does NOT touch brakes — unlock those via Desk/Relaunch).
+- **Gripper Open/Close buttons**: live dashboard header **Open / Close**
+  (`dashboard/server/gripper_control.py`; `POST /api/gripper/{open,close}`, `GET
+  /api/gripper/status`; UI `dashboard/web/src/components/GripperControl.tsx`).
+  Live-mode only, direct (no confirm). Open = `franka_msgs/action/Move` to full
+  width; Close = `franka_msgs/action/Grasp` (width 0, force ~20 N, wide epsilon)
+  so it actually clamps/holds a peg. Driven via `ros2 action send_goal`
+  subprocess (like `bringup_control`), wrapped in a timeout so an absent
+  `/panda_gripper` is reported instead of hanging. Geometry/force env-overridable
+  (`ROBO67_GRIPPER_OPEN_WIDTH`/`_SPEED`/`_GRASP_FORCE`/`_NS`).
 - **Logs page**: dashboard has a **Logs** tab (`/logs`,
   `dashboard/web/src/routes/Logs.tsx` + `components/LogPanel.tsx`) showing the
   ring-buffered stdout of all three managed runs (insertion / arm relaunch /
   home) from `/api/{insertion,bringup,home}/status`, polled 1 Hz, newest at the
   bottom. Live mode only. Doc §7.3.
+- **Insertion-failure recovery dialog**:
+  `dashboard/web/src/components/InsertionFailureModal.tsx` (mounted in AppShell)
+  watches `/api/insertion/status`; when a started run ends WITHOUT a success
+  marker and wasn't a user Stop, it pops a modal with ONE combined action,
+  **Relaunch & restart insertion**: it `POST /api/bringup/relaunch`, polls
+  `/api/bringup/status` until the sequence finishes, and **only if it verifies OK
+  (Move + gripper)** then `POST /api/insertion/start` (else it stops, shows the
+  error, offers Retry — never restarts onto a still-broken arm). Log-classified,
+  NOT exit-code-classified, because `hardware_insertion_node.run_ros` returns 0
+  even on a force/torque abort — success=`release-on-insert complete`/`sequence
+  finished`, stop=`STOP requested`, else=failure (reason prefers `FORCE ABORT`/
+  `[ERROR]`/`refusing…`). Frontend only (no new endpoint). Doc §7.4.
 - **Verified param set** (keep in sync with the dashboard `DEFAULT_ARGS`):
   `--pos-stiff 2000 --approach-tol 0.015 --press-force 18 --spiral-max-radius 0.02
   --torque-abort 12 --release-on-insert --insert-drop-trigger 0.003`.

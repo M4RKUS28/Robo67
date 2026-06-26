@@ -36,6 +36,19 @@ def _white_socket_image(with_bore=True):
     return img
 
 
+def _rotated_white_cube(center=(320, 240), side=60, angle_deg=35.0, value=252):
+    """Synthetic overhead view: a WHITE square cube rotated by ``angle_deg`` on a
+    DARK background. A rotated square's *axis-aligned* bounding box is much larger
+    than the square (a 45 deg square fills only ~50% of it), so a detector that
+    measures fill ('extent') against the axis-aligned bbox wrongly rejects it.
+    The cube top is still a filled square, so a rotation-aware (minAreaRect)
+    detector must find its centroid at ``center``."""
+    img = np.full((480, 640, 3), 35, np.uint8)
+    box = cv2.boxPoints((center, (side, side), angle_deg)).astype(np.int32)
+    cv2.fillConvexPoly(img, box, (value, value, value))
+    return img
+
+
 def test_synthetic_positive_dark_circle_detected():
     img = np.full((480, 640, 3), 180, np.uint8)  # gray background
     # White 3D-printed cube top.
@@ -168,3 +181,36 @@ def test_white_cube_rejects_non_square_blob():
     img = np.full((480, 640, 3), 35, np.uint8)
     cv2.rectangle(img, (100, 235), (540, 250), (252, 252, 252), -1)  # wide thin bar
     assert detect_white_cubes(img) == []
+
+
+def test_white_cube_rotated_detected():
+    # The socket is often placed ROTATED. A rotated square fills only ~50-70% of
+    # its axis-aligned bbox, so the old axis-aligned 'extent' filter rejected it
+    # entirely (observed on live overhead frames). A rotation-aware detector must
+    # still find the centroid. Exercise a range of angles, incl. the 45 deg worst case.
+    for angle in (15.0, 30.0, 45.0, 60.0):
+        holes = detect_white_cubes(_rotated_white_cube(angle_deg=angle))
+        assert len(holes) >= 1, f"rotated cube missed at {angle} deg"
+        assert abs(holes[0].u - 320) < 6 and abs(holes[0].v - 240) < 6
+
+
+def test_white_cube_rejects_oversized_clutter():
+    # The socket is a fixed ~6 cm cube under a fixed overhead camera, so its
+    # apparent area is bounded. A much LARGER white square (a packaging box /
+    # other clutter) must be rejected by the area cap, even though it is square
+    # and bright -- otherwise it (being larger) would be returned over the socket.
+    img = np.full((480, 640, 3), 35, np.uint8)
+    cv2.rectangle(img, (200, 150), (350, 300), (252, 252, 252), -1)  # 150x150 box (~22.5k px)
+    assert detect_white_cubes(img) == []
+
+
+def test_white_cube_prefers_socket_over_large_box():
+    # Socket-sized rotated cube AND a large white box in frame: only the socket
+    # (small, square, within the size band) must be returned. The box is square
+    # and bright, so it is rejected purely by the area cap (it is far larger than
+    # a 6 cm cube can appear), not by aspect/extent.
+    img = _rotated_white_cube(center=(420, 300), side=60, angle_deg=40.0)
+    cv2.rectangle(img, (80, 60), (230, 210), (252, 252, 252), -1)  # 150x150 clutter box
+    holes = detect_white_cubes(img)
+    assert len(holes) >= 1
+    assert abs(holes[0].u - 420) < 8 and abs(holes[0].v - 300) < 8

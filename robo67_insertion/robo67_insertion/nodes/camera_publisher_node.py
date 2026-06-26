@@ -31,6 +31,7 @@ from sensor_msgs.msg import CompressedImage
 
 from robo67_insertion.config_schema import load_config
 from robo67_insertion.lib.image_overlay import encode_jpeg
+from robo67_insertion.ros_qos import camera_qos
 from robo67_insertion.nodes.socket_detector_node import device_path, grab_frame_gst
 
 
@@ -85,7 +86,7 @@ class CameraPublisher(Node):
         self.image_path = self.get_parameter("image_path").value or ""
         self.frame_id = self.get_parameter("frame_id").value or default_frame
 
-        self.pub = self.create_publisher(CompressedImage, self.topic, 5)
+        self.pub = self.create_publisher(CompressedImage, self.topic, camera_qos())
 
         self._lock = threading.Lock()
         self._jpeg: bytes | None = None
@@ -103,36 +104,89 @@ class CameraPublisher(Node):
 
     # -- capture (background thread) -------------------------------------
 
-    def _grab(self):
+    def _open_capture(self):
+        """Open a PERSISTENT VideoCapture with a minimal driver buffer.
+
+        ``cv2`` cannot open ``/dev/v4l/by-id/...`` symlinks in a container (no
+        udev), so resolve to the real ``/dev/videoN`` first. ``BUFFERSIZE=1``
+        plus a tight read loop keeps us at the head of the stream so we always
+        publish the FRESHEST frame instead of draining a stale FIFO.
+        """
         import cv2
 
-        if self.image_path:
-            if self._still is None:
-                self._still = cv2.imread(self.image_path)
-            return self._still
-        return grab_frame_gst(self.device, width=self.width, height=self.height,
-                              exposure=self.exposure)
+        dev = device_path(self.device)
+        real = os.path.realpath(dev)
+        target = real if os.path.exists(real) else dev
+        for backend in (getattr(cv2, "CAP_V4L2", 200), getattr(cv2, "CAP_ANY", 0)):
+            cap = cv2.VideoCapture(target, backend)
+            if not cap.isOpened():
+                cap.release()
+                continue
+            cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            if self.exposure is not None:
+                # aperture-priority auto-exposure (mode 3): on THIS C920 via the
+                # OpenCV V4L2 backend the MANUAL modes blow the frame out to flat
+                # white (verified live 2026-06-26) -- only mode 3 gives a usable
+                # frame. (The GStreamer path in grab_frame_gst CAN do manual via
+                # exposure_time_absolute; cv2's CAP_PROP_EXPOSURE here cannot.)
+                cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3)
+            return cap
+        return None
 
     def _capture_loop(self):
-        period = 1.0 / self.fps
+        import cv2
+
+        # still-image mode: loop a single decoded image at the publish rate.
+        if self.image_path:
+            still = cv2.imread(self.image_path)
+            period = 1.0 / self.fps
+            while not self._stop.is_set():
+                if still is not None:
+                    jpeg = encode_jpeg(still, self.quality)
+                    if jpeg is not None:
+                        with self._lock:
+                            self._jpeg = jpeg
+                            self._frames += 1
+                self._stop.wait(period)
+            return
+
+        # device mode: one persistent capture, read in a tight loop so the V4L2
+        # buffer never backs up (always the newest frame). Encode is throttled
+        # to the publish rate to bound CPU; reads keep running to stay fresh.
+        cap = None
+        enc_period = 1.0 / self.fps
+        last_enc = 0.0
         while not self._stop.is_set():
-            t0 = time.time()
-            frame = None
-            try:
-                frame = self._grab()
-            except Exception as exc:  # noqa: BLE001 - keep streaming on transient errors
-                self.get_logger().warn(f"grab error: {exc}", throttle_duration_sec=5.0)
-            if frame is not None:
-                jpeg = encode_jpeg(frame, self.quality)
-                if jpeg is not None:
-                    with self._lock:
-                        self._jpeg = jpeg
-                        self._frames += 1
-            else:
-                self.get_logger().warn("frame grab failed", throttle_duration_sec=5.0)
-            dt = time.time() - t0
-            if period - dt > 0:
-                self._stop.wait(period - dt)
+            if cap is None:
+                cap = self._open_capture()
+                if cap is None:
+                    self.get_logger().warn("camera open failed; retrying",
+                                           throttle_duration_sec=5.0)
+                    self._stop.wait(1.0)
+                    continue
+                self.get_logger().info(f"opened {device_path(self.device)}")
+            ok, frame = cap.read()
+            if not ok or frame is None:
+                self.get_logger().warn("frame read failed; reopening",
+                                       throttle_duration_sec=5.0)
+                cap.release()
+                cap = None
+                self._stop.wait(0.2)
+                continue
+            now = time.time()
+            if now - last_enc < enc_period:
+                continue  # drained a frame to stay fresh, but don't re-encode yet
+            last_enc = now
+            jpeg = encode_jpeg(frame, self.quality)
+            if jpeg is not None:
+                with self._lock:
+                    self._jpeg = jpeg
+                    self._frames += 1
+        if cap is not None:
+            cap.release()
 
     # -- publish (executor thread) ---------------------------------------
 

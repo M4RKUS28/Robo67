@@ -44,6 +44,18 @@ def test_socket_overlay_actually_draws_something():
     assert not np.array_equal(out, img)  # pixels changed
 
 
+def test_socket_overlay_draws_rectangle_box():
+    """The detection marker is an axis-aligned bounding rectangle: the bbox
+    corner pixel is coloured. A circle ring would leave that corner (which sits
+    outside the enclosing circle, at distance r*sqrt(2)) untouched."""
+    img = _img()
+    hole = Hole(80.0, 60.0, 18.0, 0.9)
+    out = draw_socket_overlay(img, [hole])
+    r = int(hole.radius_px)
+    x0, y0 = int(hole.u) - r, int(hole.v) - r  # top-left bbox corner
+    assert not np.array_equal(out[y0, x0], img[y0, x0])
+
+
 def test_socket_overlay_empty_holes_returns_unmodified_copy():
     img = _img()
     out = draw_socket_overlay(img, [])

@@ -75,6 +75,12 @@ class Handler(BaseHTTPRequestHandler):
     def _home(self):
         return self.server.home  # type: ignore[attr-defined]
 
+    def _fci(self):
+        return self.server.fci  # type: ignore[attr-defined]
+
+    def _gripper(self):
+        return self.server.gripper  # type: ignore[attr-defined]
+
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
 
@@ -121,6 +127,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json(self._home().run())
             if path == "/api/home/stop":
                 return self._send_json(self._home().stop())
+            if path == "/api/fci/activate":
+                return self._send_json(self._fci().activate())
+            if path == "/api/fci/deactivate":
+                return self._send_json(self._fci().deactivate())
+            if path == "/api/gripper/open":
+                return self._send_json(self._gripper().open())
+            if path == "/api/gripper/close":
+                return self._send_json(self._gripper().close())
             return self._send_json({"error": "not found", "path": path}, status=404)
         except (BrokenPipeError, ConnectionResetError):
             return
@@ -143,6 +157,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_json(self._bringup().status())
             if path == "/api/home/status":
                 return self._send_json(self._home().status())
+            if path == "/api/fci/status":
+                return self._send_json(self._fci().status())
+            if path == "/api/gripper/status":
+                return self._send_json(self._gripper().status())
             if path == "/api/stream":
                 return self._stream_sse()
             if path.startswith("/api/cam/"):
@@ -286,6 +304,8 @@ def main(argv=None):
     from insertion_control import InsertionController
     from bringup_control import BringupController
     from home_control import HomeController
+    from fci_control import FciController
+    from gripper_control import GripperController
 
     httpd = ThreadingHTTPServer((args.host, args.port), Handler)
     httpd.daemon_threads = True
@@ -298,15 +318,22 @@ def main(argv=None):
                                       enabled=(args.mode == "live"))
     # The Home button holds the pose the arm is in right now -> live mode only.
     httpd.home = HomeController(enabled=(args.mode == "live"))  # type: ignore[attr-defined]
+    # The FCI on/off button toggles the Franka Control Interface over the Desk
+    # HTTP API (login + take control + activate/deactivate) -> live mode only.
+    httpd.fci = FciController(enabled=(args.mode == "live"))  # type: ignore[attr-defined]
+    # The gripper Open/Close buttons drive the franka_gripper Move/Grasp actions
+    # via the ros2 CLI (needs the gripper node) -> live mode only.
+    httpd.gripper = GripperController(enabled=(args.mode == "live"))  # type: ignore[attr-defined]
 
     web = "serving built SPA from web/dist" if os.path.isdir(WEB_DIST) else \
         "no built SPA (use Vite dev server)"
     print(f"[robo67-dashboard] mode={args.mode}  http://{args.host}:{args.port}  ({web})")
     print(f"[robo67-dashboard]   GET  /api/health  /api/config  /api/stream  "
           f"/api/cam/c920  /api/cam/d405  /api/insertion/status  /api/bringup/status  "
-          f"/api/home/status")
+          f"/api/home/status  /api/fci/status  /api/gripper/status")
     print(f"[robo67-dashboard]   POST /api/insertion/start  /api/insertion/stop  "
-          f"/api/bringup/relaunch  /api/home/run  /api/home/stop  (live mode only)")
+          f"/api/bringup/relaunch  /api/home/run  /api/home/stop  /api/fci/activate  "
+          f"/api/fci/deactivate  /api/gripper/open  /api/gripper/close  (live mode only)")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

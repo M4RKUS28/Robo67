@@ -262,10 +262,19 @@ class WhiteCubeParams:
         Bright threshold ``max(bright_floor, percentile(gray, bright_pct) -
         bright_drop)`` -- adapts to exposure while staying above the carpet.
     min_area_px / max_area_px:
-        Accepted contour area (the cube top), in px^2.
+        Accepted contour area (the cube top), in px^2. The socket is a fixed
+        ~6 cm cube under a FIXED overhead camera, so its apparent area is
+        bounded (~3.9k px on the C920); ``max_area_px`` is the clutter guard
+        that rejects much larger white blobs (packaging boxes, devices) that
+        would otherwise be returned over the socket (they are bigger, and the
+        result is area-sorted). Keep it just above the socket's apparent area.
     min_aspect / max_aspect / min_extent:
-        Bounding-box aspect and fill (area / bbox-area) bounds -- keep filled,
-        roughly square blobs (reject the elongated/irregular arm, cables, edges).
+        Aspect and fill ('extent') bounds measured against the **rotated**
+        min-area rectangle (``cv2.minAreaRect``), NOT the axis-aligned bbox --
+        so a socket placed at any ROTATION still reads as a filled ~square
+        (a 45 deg square fills only ~50% of its axis-aligned bbox, which the
+        old axis-aligned test wrongly rejected). Keeps filled, roughly square
+        blobs (rejects the elongated/irregular arm, cables, edges).
     roi_margin:
         Ignore detections whose centroid is within this fractional image border.
     """
@@ -274,7 +283,7 @@ class WhiteCubeParams:
     bright_drop: float = 55.0
     bright_floor: float = 150.0
     min_area_px: float = 1200.0
-    max_area_px: float = 30000.0
+    max_area_px: float = 10000.0
     min_aspect: float = 0.55
     max_aspect: float = 1.8
     min_extent: float = 0.78
@@ -287,8 +296,13 @@ def detect_white_cubes(bgr: np.ndarray,
 
     Robust drop-in for the socket feature when the bore is too faint to detect
     (overexposed white-on-white). Returns :class:`Hole` (``u``/``v`` = centroid,
-    ``radius_px`` = half the mean side, ``score`` = bbox fill 'extent'), sorted
-    by contour AREA descending (largest cube first). See :class:`WhiteCubeParams`.
+    ``radius_px`` = half the mean rotated-rect side, ``score`` = rotated-rect
+    fill 'extent'), sorted by contour AREA descending (largest cube first).
+
+    The aspect/extent are measured against the **rotated** min-area rectangle
+    (``cv2.minAreaRect``), so a socket placed at any rotation is still accepted;
+    the old axis-aligned bounding box made a rotated square look non-square and
+    under-filled and dropped it entirely. See :class:`WhiteCubeParams`.
     """
     gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     gray = cv2.medianBlur(gray, 5)
@@ -308,9 +322,13 @@ def detect_white_cubes(bgr: np.ndarray,
         area = cv2.contourArea(c)
         if area < params.min_area_px or area > params.max_area_px:
             continue
-        x, y, bw, bh = cv2.boundingRect(c)
-        aspect = bw / float(bh)
-        extent = area / float(bw * bh)
+        # Rotation-invariant shape test: aspect + fill against the min-area
+        # (rotated) rectangle, so a rotated socket still reads as a filled square.
+        (rw, rh) = cv2.minAreaRect(c)[1]
+        if rw <= 0.0 or rh <= 0.0:
+            continue
+        aspect = rw / float(rh)
+        extent = area / float(rw * rh)
         if not (params.min_aspect < aspect < params.max_aspect) or extent < params.min_extent:
             continue
         m = cv2.moments(c)
@@ -319,7 +337,7 @@ def detect_white_cubes(bgr: np.ndarray,
         cx, cy = m["m10"] / m["m00"], m["m01"] / m["m00"]
         if not (mx0 < cx < w - mx0 and my0 < cy < h - my0):
             continue
-        hole = Hole(u=float(cx), v=float(cy), radius_px=float((bw + bh) / 4.0),
+        hole = Hole(u=float(cx), v=float(cy), radius_px=float((rw + rh) / 4.0),
                     score=float(extent))
         out.append((hole, float(area)))
 

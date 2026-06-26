@@ -1,16 +1,17 @@
-"""Bring the arm "home" from the dashboard -- hold the pose it is in RIGHT NOW.
+"""Bring the arm to the defined HOME pose from the dashboard.
 
-"Home" here is not a fixed configuration: it is whatever pose the arm is in at
-the instant the button is pressed. The controller's commanded equilibrium is
-re-anchored to the current measured EE so the arm holds exactly where it is (no
-net motion) -- the standard "parker" used to settle the cartesian impedance
-controller after a relaunch / nudge / drift.
+"Home" is a FIXED starting pose (taught by hand-guiding the arm to a good
+default and reading its EE there). The Home button MOVES the arm to that pose so
+you can always restore the start position after working / jogging the arm.
 
-It reuses ``scripts/hw_cartesian_hold.py`` (which reads one ``FrankaState``,
-captures the current EE as the hold target, and streams it as the desired pose
-for ``--secs`` on the auto-detected command path -- the real-arm subscriber
-path). Like the insertion + bringup controllers, this owns at most one such
-subprocess (own process group, ring-buffered stdout) and is **live-mode only**.
+The pose below was captured from the live arm (the operator's chosen default);
+override it with ``ROBO67_HOME_XYZ="x y z"`` (metres, base frame) if you re-teach
+it. The move is tool-down (vertical, yaw-preserving) -- the insertion-ready
+orientation -- via ``scripts/hw_move_to.py`` (gentle time-parameterised ramp +
+overshoot settle, workspace clamp, force/reflex aborts).
+
+Like the insertion + bringup controllers, this owns at most one such subprocess
+(own process group, ring-buffered stdout) and is **live-mode only**.
 """
 from __future__ import annotations
 
@@ -24,18 +25,31 @@ from typing import Dict, List, Optional
 
 from common import INSERTION_PKG, REPO_ROOT
 
-HOLD_SCRIPT = os.path.join(INSERTION_PKG, "scripts", "hw_cartesian_hold.py")
+MOVE_SCRIPT = os.path.join(INSERTION_PKG, "scripts", "hw_move_to.py")
 
-# How long to stream the captured pose (s). The cartesian impedance controller
-# retains the last commanded equilibrium after the process exits, so a short
-# hold is enough to re-anchor "home" at the current pose.
-HOLD_SECS = os.environ.get("ROBO67_HOME_HOLD_S", "4.0")
+# Hard-coded HOME pose (base-frame EE XYZ, metres), captured live from the arm's
+# taught default position. Override with ROBO67_HOME_XYZ="x y z".
+_DEFAULT_HOME_XYZ = (0.2145, -0.0278, 0.4451)
 
-DEFAULT_ARGS: List[str] = ["--secs", HOLD_SECS, "--cmd-mode", "auto"]
+
+def _home_xyz() -> List[str]:
+    env = os.environ.get("ROBO67_HOME_XYZ")
+    if env:
+        parts = env.split()
+        if len(parts) == 3:
+            return parts
+    return [f"{v:.4f}" for v in _DEFAULT_HOME_XYZ]
+
+
+HOME_XYZ = _home_xyz()
+# Gentle, vertical (tool-down) move on the auto-detected command path.
+DEFAULT_ARGS: List[str] = (
+    ["--xyz", *HOME_XYZ, "--tool-down", "--speed", "0.02", "--cmd-mode", "auto"]
+)
 
 
 class HomeController:
-    """Owns at most one "bring to home" (hold-current-pose) subprocess."""
+    """Owns at most one "go home" (move-to-defined-pose) subprocess."""
 
     def __init__(self, enabled: bool = True, log_lines: int = 300) -> None:
         self.enabled = enabled            # live mode only
@@ -66,7 +80,7 @@ class HomeController:
             if self._running():
                 return {"ok": False, "error": "home already running",
                         "pid": self._proc.pid}  # type: ignore[union-attr]
-            cmd = ["python3", "-u", HOLD_SCRIPT] + DEFAULT_ARGS + list(extra_args or [])
+            cmd = ["python3", "-u", MOVE_SCRIPT] + DEFAULT_ARGS + list(extra_args or [])
             self._log.clear()
             self._last_exit = None
             try:
@@ -78,7 +92,8 @@ class HomeController:
                 self._proc = None
                 return {"ok": False, "error": f"spawn failed: {exc}"}
             self._started_at = time.time()
-            self._log.append("[dashboard] HOME (hold current pose) " + " ".join(cmd))
+            self._log.append("[dashboard] HOME (move to " + " ".join(HOME_XYZ) + ") "
+                             + " ".join(cmd))
             threading.Thread(target=self._drain, args=(self._proc,), daemon=True).start()
             return {"ok": True, "pid": self._proc.pid}
 
@@ -115,5 +130,6 @@ class HomeController:
                 "elapsed_s": (round(time.time() - self._started_at, 1)
                               if (running and self._started_at is not None) else None),
                 "last_exit": self._last_exit,
+                "home_xyz": [float(v) for v in HOME_XYZ],
                 "log": list(self._log),
             }

@@ -1,5 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import type { BringupStatus, Config, Health, HomeStatus, InsertionStatus } from "./types";
+import type {
+  BringupStatus,
+  Config,
+  FciStatus,
+  GripperStatus,
+  Health,
+  HomeStatus,
+  InsertionStatus,
+} from "./types";
 
 async function getJSON<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -78,4 +86,40 @@ export function runHome() {
 
 export function stopHome() {
   return postJSON<{ ok: boolean; error?: string }>("/api/home/stop");
+}
+
+// FCI on/off control (live mode only). Polls status; activate/deactivate POST.
+export function useFciStatus() {
+  return useQuery({
+    queryKey: ["fci-status"],
+    queryFn: () => getJSON<FciStatus>("/api/fci/status"),
+    refetchInterval: 1000,
+    retry: true,
+  });
+}
+
+export function activateFci() {
+  return postJSON<{ ok: boolean; error?: string; started?: boolean }>("/api/fci/activate");
+}
+
+export function deactivateFci() {
+  return postJSON<{ ok: boolean; error?: string; started?: boolean }>("/api/fci/deactivate");
+}
+
+// Gripper open/close control (live mode only). Polls status; open/close POST.
+export function useGripperStatus() {
+  return useQuery({
+    queryKey: ["gripper-status"],
+    queryFn: () => getJSON<GripperStatus>("/api/gripper/status"),
+    refetchInterval: 1000,
+    retry: true,
+  });
+}
+
+export function openGripper() {
+  return postJSON<{ ok: boolean; error?: string; started?: boolean }>("/api/gripper/open");
+}
+
+export function closeGripper() {
+  return postJSON<{ ok: boolean; error?: string; started?: boolean }>("/api/gripper/close");
 }

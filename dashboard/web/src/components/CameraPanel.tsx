@@ -15,6 +15,15 @@ interface Props {
   accent?: string;
   /** Server-rendered overlay feed id (e.g. "c920_overlay"); enables the toggle. */
   overlayCamId?: string;
+  /** Client overlay marker shape: "rect" (bounding box) or "circle" (ring). */
+  markerShape?: "circle" | "rect";
+  /**
+   * Enforced workspace AABB projected into this camera's pixels: 4 corners
+   * [[u,v],...] in the source frame. When present, a dashed boundary is drawn so
+   * the operator can see whether a perceived socket falls inside the box the run
+   * will actually accept (overhead C920 only).
+   */
+  workspacePx?: [number, number][] | null;
 }
 
 function isD405(d: Det | undefined): d is D405Detection {
@@ -29,6 +38,8 @@ export function CameraPanel({
   detection,
   accent = "#38bdf8",
   overlayCamId,
+  markerShape = "circle",
+  workspacePx,
 }: Props) {
   // bump the MJPEG <img> src on (re)mount so the stream restarts cleanly
   const [nonce] = useState(() => Date.now());
@@ -120,6 +131,39 @@ export function CameraPanel({
           </div>
         )}
 
+        {/* Workspace boundary — the enforced AABB projected into this camera's
+            pixels (overhead C920 only). Drawn independently of any detection (and
+            on both views) so the operator can see whether the socket falls inside
+            the box the run will accept. Same viewBox as the detection overlay. */}
+        {available && imgOk && workspacePx && workspacePx.length >= 3 && (
+          <svg
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            viewBox={`0 0 ${w} ${h}`}
+            preserveAspectRatio="xMidYMid meet"
+          >
+            <polygon
+              points={workspacePx.map(([wu, wv]) => `${wu},${wv}`).join(" ")}
+              fill="#fbbf24"
+              fillOpacity={0.06}
+              stroke="#fbbf24"
+              strokeWidth={3}
+              strokeDasharray="12 8"
+              strokeLinejoin="round"
+              opacity={0.85}
+            />
+            <text
+              x={workspacePx[0][0] + 8}
+              y={workspacePx[0][1] - 8}
+              fill="#fbbf24"
+              fontSize={20}
+              fontWeight={600}
+              opacity={0.9}
+            >
+              workspace
+            </text>
+          </svg>
+        )}
+
         {/* Detection overlay — viewBox matches the source frame so pixel
             coords map 1:1 under object-contain (xMidYMid meet). Skipped on the
             "processed" feed, where the detector already burned the overlay in. */}
@@ -132,34 +176,53 @@ export function CameraPanel({
             {/* faint full-frame crosshair */}
             <line x1={u} y1={0} x2={u} y2={h} stroke={accent} strokeWidth={1} opacity={0.25} />
             <line x1={0} y1={v} x2={w} y2={v} stroke={accent} strokeWidth={1} opacity={0.25} />
-            {/* detection ring */}
+            {/* detection marker: bounding rectangle (rect) or ring (circle) */}
+            {markerShape === "rect" ? (
+              <rect
+                x={u - Math.max(r, 8)}
+                y={v - Math.max(r, 8)}
+                width={2 * Math.max(r, 8)}
+                height={2 * Math.max(r, 8)}
+                fill="none"
+                stroke="#00ff00"
+                strokeWidth={7}
+              />
+            ) : (
+              <>
+                <circle
+                  cx={u}
+                  cy={v}
+                  r={Math.max(r, 8)}
+                  fill="none"
+                  stroke={accent}
+                  strokeWidth={3}
+                />
+                {/* corner ticks */}
+                {[-1, 1].map((sx) =>
+                  [-1, 1].map((sy) => {
+                    const rr = Math.max(r, 8) + 7;
+                    const len = 10;
+                    return (
+                      <path
+                        key={`${sx}${sy}`}
+                        d={`M ${u + sx * rr} ${v + sy * rr} h ${sx * len} M ${u + sx * rr} ${
+                          v + sy * rr
+                        } v ${sy * len}`}
+                        stroke={accent}
+                        strokeWidth={2}
+                        fill="none"
+                      />
+                    );
+                  }),
+                )}
+              </>
+            )}
             <circle
               cx={u}
               cy={v}
-              r={Math.max(r, 8)}
-              fill="none"
-              stroke={accent}
-              strokeWidth={3}
+              r={markerShape === "rect" ? 7 : 3}
+              fill={markerShape === "rect" ? "#ff0000" : accent}
             />
-            <circle cx={u} cy={v} r={3} fill={accent} />
-            {/* corner ticks */}
-            {[-1, 1].map((sx) =>
-              [-1, 1].map((sy) => {
-                const rr = Math.max(r, 8) + 7;
-                const len = 10;
-                return (
-                  <path
-                    key={`${sx}${sy}`}
-                    d={`M ${u + sx * rr} ${v + sy * rr} h ${sx * len} M ${u + sx * rr} ${
-                      v + sy * rr
-                    } v ${sy * len}`}
-                    stroke={accent}
-                    strokeWidth={2}
-                    fill="none"
-                  />
-                );
-              }),
-            )}
             {/* D405 servo-correction arrow: from frame centre toward the hole */}
             {d405 && (
               <g>

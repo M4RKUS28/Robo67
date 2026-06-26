@@ -13,6 +13,30 @@ from typing import List, Union
 import yaml
 
 
+# Canonical real-arm Cartesian workspace AABB (base frame), shape
+# [[xmin,xmax],[ymin,ymax],[zmin,zmax]] in meters. This ONE value gates the
+# real-arm vision + insertion run path (hw_peg_in_hole_vision +
+# hardware_insertion_node) AND is what the dashboard draws as the workspace
+# overlay, so the box shown is exactly the box enforced (no drift).
+#
+# NOTE: this is the REAL-arm box. The sim/MMC orchestrator uses the much more
+# generous ``SafetyCfg.workspace_aabb`` below -- do not confuse the two.
+#
+# Bounded 2026-06-26 to a sub-region of the dark mat actually in the overhead
+# C920 view (verified against a live frame + the calibrated homography): the
+# original [0.15,0.65]x[-0.45,0.45] box projected well past the mat's bottom/
+# right edges (off-frame). x grows DOWN in the image, y grows RIGHT, so xmax/ymax
+# are the bottom/right edges. Sized to a centered region with margin to the mat
+# edges (down/right intentionally not pushed to the very edge).
+REAL_ARM_WORKSPACE_AABB: List[List[float]] = [[0.15, 0.53], [-0.38, 0.15], [0.02, 0.60]]
+
+
+def real_arm_workspace_aabb_flat() -> List[float]:
+    """``REAL_ARM_WORKSPACE_AABB`` as the flat ``[xmin,xmax,ymin,ymax,zmin,zmax]``
+    that the ``--workspace-aabb`` argparse option (nargs=6) expects."""
+    return [c for pair in REAL_ARM_WORKSPACE_AABB for c in pair]
+
+
 @dataclass
 class StiffnessCfg:
     free_translational: float = 400.0      # N/m, free-space moves

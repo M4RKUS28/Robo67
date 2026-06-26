@@ -48,8 +48,10 @@ def generate_launch_description():
                               description="Path to c920_homography.npz from calibration."),
         DeclareLaunchArgument("gripper", default_value="false",
                               description="Also bring up the D405 gripper camera + servo feeds."),
-        DeclareLaunchArgument("socket_kind", default_value="white",
-                              description="'white' (real socket) or 'dark' (legacy hole)."),
+        DeclareLaunchArgument("socket_kind", default_value="cube",
+                              description="socket_detector kind: 'cube' -> detect_white_cubes "
+                              "(white box/socket), 'white' -> detect_sockets (white bore), "
+                              "'dark' -> detect_holes (dark circular hole)."),
         DeclareLaunchArgument("detector", default_value="socket",
                               description="Overhead detector: 'socket' (peg-in-hole) or "
                                           "'box' (cable-insertion I/O box)."),

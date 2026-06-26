@@ -22,6 +22,8 @@ export function Cameras() {
           detection={c920}
           accent="#38bdf8"
           overlayCamId={cam?.c920?.overlay}
+          markerShape="rect"
+          workspacePx={cam?.c920?.workspace_px}
         />
         <CameraPanel
           camId="d405"

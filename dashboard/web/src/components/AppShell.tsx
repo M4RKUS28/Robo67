@@ -9,6 +9,9 @@ import { fmtClock } from "../lib/format";
 import { InsertionControl } from "./InsertionControl";
 import { BringupControl } from "./BringupControl";
 import { HomeControl } from "./HomeControl";
+import { FciControl } from "./FciControl";
+import { GripperControl } from "./GripperControl";
+import { InsertionFailureModal } from "./InsertionFailureModal";
 
 const NAV = [
   { to: "/", label: "Overview", icon: Activity },
@@ -70,11 +73,17 @@ export function AppShell({ children }: { children: ReactNode }) {
             ))}
           </nav>
 
+          {/* FCI on/off via the Desk API (live mode only) */}
+          <FciControl />
+
           {/* arm bringup relaunch (live mode only) */}
           <BringupControl />
 
           {/* bring to home — hold current pose (live mode only) */}
           <HomeControl />
+
+          {/* gripper open / close (live mode only) */}
+          <GripperControl />
 
           {/* automated-insertion start / stop (live mode only) */}
           <InsertionControl />
@@ -108,6 +117,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <main className="flex-1 pb-6">{children}</main>
+
+      {/* global recovery dialog when a started insertion run fails */}
+      <InsertionFailureModal />
     </div>
   );
 }
