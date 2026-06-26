@@ -97,8 +97,9 @@ camera:
   # from stealing the C920's /dev/video6.
   d405_color_device: /dev/v4l/by-id/usb-Intel_R__RealSense_TM__Depth_Camera_405_Intel_R__RealSense_TM__Depth_Camera_405_215123071253-video-index2
   d405_depth_device: /dev/v4l/by-id/usb-Intel_R__RealSense_TM__Depth_Camera_405_Intel_R__RealSense_TM__Depth_Camera_405_215123071253-video-index0
-  # Lock C920 to manual exposure: the white socket otherwise overexposes to flat
-  # white and the bright-bore detector (detect_sockets) can't see it. ~40-120 OK.
+  # Lock C920 to manual exposure: the white socket otherwise overexposes and
+  # bleeds into the carpet, so the cube detector (detect_white_cubes) can't
+  # cleanly segment its square. ~40-120 OK.
   c920_exposure: 100
   c920_fx: 1000.0
   c920_fy: 1000.0

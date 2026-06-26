@@ -4,7 +4,7 @@ robot-as-groundtruth marker, HAND-GUIDED (you move the compliant arm).
 
 How it works
 ------------
-The overhead detector (:func:`~robo67_insertion.lib.hole_detect.detect_sockets`)
+The overhead detector (:func:`~robo67_insertion.lib.hole_detect.detect_white_cubes`)
 finds the WHITE socket, not the tool, so we use the socket itself as the
 ground-truth marker. Per station you seat the peg tip in the socket bore (the
 hole self-centres it -> EE XY == socket XY), record, then move the arm clear so
@@ -46,7 +46,7 @@ if _PKG_ROOT not in sys.path:
 import numpy as np  # noqa: E402
 
 from robo67_insertion.lib import geometry  # noqa: E402
-from robo67_insertion.lib.hole_detect import WhiteSocketParams, detect_sockets  # noqa: E402
+from robo67_insertion.lib.hole_detect import WhiteCubeParams, detect_white_cubes  # noqa: E402
 from robo67_insertion.nodes.calibration_node import fit_and_save  # noqa: E402
 
 DEFAULT_OUT = os.path.join(_PKG_ROOT, "config", "c920_homography.npz")
@@ -62,7 +62,7 @@ def detect_socket_pixel(frames, params):
     """Best socket pixel (median u,v) over frames that yielded a detection."""
     us, vs = [], []
     for img in frames:
-        holes = detect_sockets(img, params)
+        holes = detect_white_cubes(img, params)
         if holes:
             us.append(holes[0].u)
             vs.append(holes[0].v)
@@ -98,9 +98,12 @@ def selftest(_args):
             cv2.circle(img, (320, 240), 18, (205, 205, 205), -1)
         return img
 
-    px, _ = detect_socket_pixel([cube(True)] * 3, WhiteSocketParams())
+    px, _ = detect_socket_pixel([cube(True)] * 3, WhiteCubeParams())
     det_ok = px is not None and abs(px[0] - 320) < 6 and abs(px[1] - 240) < 6
-    det_ok = det_ok and detect_socket_pixel([cube(False)] * 3, WhiteSocketParams())[0] is None
+    # detect_white_cubes keys on the white cube body (not the bore), so an empty
+    # dark scene must yield no detection.
+    empty = np.full((480, 640, 3), 35, np.uint8)
+    det_ok = det_ok and detect_socket_pixel([empty] * 3, WhiteCubeParams())[0] is None
 
     base = np.array([(0.40, -0.10), (0.50, -0.10), (0.45, 0.0),
                      (0.40, 0.10), (0.50, 0.10), (0.55, 0.0)], float)
@@ -186,7 +189,7 @@ def run_capture(args):
         args.c920_device = cam.c920_device
         if args.exposure is None:
             args.exposure = cam.c920_exposure
-    params = WhiteSocketParams()
+    params = WhiteCubeParams()
 
     rclpy.init()
     node = Guide(cmd_mode=args.cmd_mode)

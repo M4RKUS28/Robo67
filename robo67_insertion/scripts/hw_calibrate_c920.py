@@ -16,10 +16,10 @@ at the wrong Z makes the mapping silently wrong at the socket.
 Marker (where the known base point shows up in the image):
   * ``--marker manual`` (default, always works): the tool saves each frame to
     ``--capture-dir`` and you type the pixel ``u v`` you see (open the jpg).
-  * ``--marker hole``: auto-detect a dark round marker via the SAME detector used
-    for the socket (:func:`~robo67_insertion.lib.hole_detect.detect_holes`).
-    Use this if the peg tip / a stuck-on dark dot reads as a clean dark circle
-    from overhead. Verify with ``--image`` first.
+  * ``--marker auto``: auto-detect the marker via the SAME detector used for the
+    socket (:func:`~robo67_insertion.lib.hole_detect.detect_white_cubes`).
+    Use this if a white cube marker reads cleanly from overhead. Verify with
+    ``--image`` first.
 
 USAGE (run INSIDE multipanda-container; see CLAUDE.md runbook)
 -------------------------------------------------------------
@@ -54,10 +54,8 @@ import numpy as np  # noqa: E402
 # PURE imports (no rclpy at load): fit math, hole detector, geometry round-trip.
 from robo67_insertion.lib import geometry  # noqa: E402
 from robo67_insertion.lib.hole_detect import (  # noqa: E402
-    HoleParams,
-    WhiteSocketParams,
-    detect_holes,
-    detect_sockets,
+    WhiteCubeParams,
+    detect_white_cubes,
 )
 from robo67_insertion.nodes.calibration_node import fit_and_save, load_correspondences  # noqa: E402
 
@@ -84,20 +82,11 @@ def make_grid(box, nx, ny):
 
 
 def build_detector(args):
-    """Return ``img -> list[Hole]`` for the chosen marker detector.
+    """Return ``img -> list[Hole]`` for the marker detector.
 
-    ``white`` (default) finds the white-on-dark socket (:func:`detect_sockets`);
-    ``dark`` is the legacy dark-circle detector (:func:`detect_holes`).
+    Finds the white-on-dark socket cube centroid (:func:`detect_white_cubes`).
     """
-    if args.detector == "white":
-        return lambda img: detect_sockets(img, WhiteSocketParams())
-    params = HoleParams(
-        min_radius_px=args.min_radius,
-        max_radius_px=args.max_radius,
-        dark_max_value=args.dark_max,
-        min_circularity=args.min_circularity,
-    )
-    return lambda img: detect_holes(img, params)
+    return lambda img: detect_white_cubes(img, WhiteCubeParams())
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +146,7 @@ def run_capture(args):
             import cv2
             img = cv2.imread(args.image)
             px = pixel_from_image(img, detect_fn) if img is not None else None
-            print(f"[dry-run] {args.detector}-detect on {args.image}: pixel={px}")
+            print(f"[dry-run] cube-detect on {args.image}: pixel={px}")
         return 0
 
     # ---- real run: lazy-import ROS + the safe mover + camera grab ----
@@ -352,9 +341,7 @@ def build_parser():
     # marker / detection
     ap.add_argument("--marker", choices=["manual", "auto"], default="manual",
                     help="manual = operator types the pixel per station (robust); "
-                         "auto = detect the marker with --detector")
-    ap.add_argument("--detector", choices=["white", "dark"], default="white",
-                    help="auto-marker detector: white socket (default) or dark hole")
+                         "auto = detect the white socket cube centroid")
     ap.add_argument("--exposure", type=int, default=100,
                     help="lock C920 manual exposure (~40-120); passed to each grab")
     ap.add_argument("--image", default="",
@@ -362,10 +349,6 @@ def build_parser():
     ap.add_argument("--c920-device", type=str, default=None,
                     help="C920 device: a by-id symlink/path or a bare /dev/video "
                          "index (default: from config)")
-    ap.add_argument("--dark-max", type=int, default=HoleParams.dark_max_value)
-    ap.add_argument("--min-circularity", type=float, default=HoleParams.min_circularity)
-    ap.add_argument("--min-radius", type=float, default=HoleParams.min_radius_px)
-    ap.add_argument("--max-radius", type=float, default=HoleParams.max_radius_px)
 
     # motion / safety
     ap.add_argument("--dry-run", action="store_true",

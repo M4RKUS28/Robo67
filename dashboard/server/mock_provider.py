@@ -11,7 +11,7 @@ so the dashboard always shows activity.
 
 Cameras are served from the saved stills in ``robo67_insertion/captures/`` (the
 overhead C920 socket view + the D405 eye-in-hand view). Detection markers are
-computed once with the real :func:`detect_holes` and streamed in telemetry; the
+computed once with the real :func:`detect_white_cubes` and streamed in telemetry; the
 frontend overlays them on the MJPEG feeds.
 
 No ROS, no real camera, no robot -- runs anywhere ``numpy`` (and ideally
@@ -97,7 +97,7 @@ def _pick_still(prefix: str, preferred: List[str], fallback_size,
     try:
         import cv2
 
-        from robo67_insertion.lib.hole_detect import HoleParams, detect_holes
+        from robo67_insertion.lib.hole_detect import WhiteCubeParams, detect_white_cubes
 
         for path in candidates:
             img = cv2.imread(path)
@@ -106,7 +106,7 @@ def _pick_still(prefix: str, preferred: List[str], fallback_size,
             h, w = img.shape[:2]
             if best_det is None:  # remember first readable frame + its size
                 best_path, best_size = path, (int(w), int(h))
-            holes = detect_holes(img, HoleParams())
+            holes = detect_white_cubes(img, WhiteCubeParams())
             if holes:
                 hole = holes[0]
                 return path, (int(w), int(h)), dict(

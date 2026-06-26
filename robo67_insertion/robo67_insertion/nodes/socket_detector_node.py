@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Socket detector node.
 
-Grabs overhead C920 frames, detects the dark circular hole
-(:func:`~robo67_insertion.lib.hole_detect.detect_holes`), maps the best hole's
-pixel to robot-base XY through the pixel-to-base mapping seam
+Grabs overhead C920 frames, detects the white socket cube
+(:func:`~robo67_insertion.lib.hole_detect.detect_white_cubes`), maps the best
+detection's pixel to robot-base XY through the pixel-to-base mapping seam
 (:class:`~robo67_insertion.lib.pixel_mapping.HomographyMappingAdapter`, which
 composes the calibrated homography), and publishes:
 
@@ -45,11 +45,7 @@ from std_msgs.msg import Float64MultiArray
 
 from robo67_insertion.config_schema import load_config
 from robo67_insertion.lib.hole_detect import (
-    HoleParams,
     WhiteCubeParams,
-    WhiteSocketParams,
-    detect_holes,
-    detect_sockets,
     detect_white_cubes,
 )
 from robo67_insertion.lib.image_overlay import decode_jpeg, draw_socket_overlay, encode_jpeg
@@ -178,8 +174,7 @@ class SocketDetector(Node):
         self.declare_parameter("rate_hz", 5.0)
         self.declare_parameter("image_path", "")  # offline: detect on a still image instead of camera
         # "cube" = white cube centroid (detect_white_cubes; matches the
-        # socket-proxy homography, robust to overexposure); "white" = bore
-        # detector (detect_sockets); "dark" = legacy dark-hole (detect_holes).
+        # socket-proxy homography, robust to overexposure).
         self.declare_parameter("socket_kind", "cube")
         # frame source: "topic" (subscribe to camera_publisher), "device"
         # (grab directly), "image" (still). Defaults below resolve from config.
@@ -220,8 +215,7 @@ class SocketDetector(Node):
                 f"no homography at {hpath}; publishing detections only (no base-frame pose)"
             )
 
-        self.params = {"cube": WhiteCubeParams(), "white": WhiteSocketParams()}.get(
-            self.socket_kind, HoleParams())
+        self.params = WhiteCubeParams()
         self.pub_pose = self.create_publisher(PoseStamped, self.cfg.topics.socket_pose, 10)
         self.pub_det = self.create_publisher(Float64MultiArray, self.cfg.topics.socket_detection, 10)
         self.pub_overlay = self.create_publisher(CompressedImage, self.overlay_topic, camera_qos())
@@ -241,11 +235,7 @@ class SocketDetector(Node):
             f"exposure={self.exposure}, {self.rate} Hz) -> overlay {self.overlay_topic}")
 
     def _detect(self, img):
-        if self.socket_kind == "cube":
-            return detect_white_cubes(img, self.params)
-        if self.socket_kind == "white":
-            return detect_sockets(img, self.params)
-        return detect_holes(img, self.params)
+        return detect_white_cubes(img, self.params)
 
     def _grab(self):
         import cv2

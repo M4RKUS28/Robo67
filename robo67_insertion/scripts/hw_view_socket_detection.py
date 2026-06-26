@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """hw_view_socket_detection.py -- live C920 feed with socket detection overlay.
 
-Opens the overhead Logitech C920, runs detect_sockets on every frame, and draws
-the result in a live OpenCV window. No ROS required.
+Opens the overhead Logitech C920, runs detect_white_cubes on every frame, and
+draws the result in a live OpenCV window. No ROS required.
 
 Controls
 --------
@@ -33,14 +33,12 @@ import cv2
 import numpy as np
 
 from robo67_insertion.lib.hole_detect import (
-    HoleParams, WhiteCubeParams, WhiteSocketParams,
-    detect_holes, detect_sockets, detect_white_cubes,
+    WhiteCubeParams,
+    detect_white_cubes,
 )
 
 _DETECTORS = {
-    "cube":   (detect_white_cubes, WhiteCubeParams),
-    "socket": (detect_sockets,     WhiteSocketParams),
-    "hole":   (detect_holes,       HoleParams),
+    "cube": (detect_white_cubes, WhiteCubeParams),
 }
 
 DEFAULT_CONFIG = os.path.join(_PKG_ROOT, "config", "robo67.yaml")
@@ -262,7 +260,7 @@ def build_parser():
     ap.add_argument("--width", type=int, default=1280)
     ap.add_argument("--height", type=int, default=720)
     ap.add_argument("--mode", choices=list(_DETECTORS), default="cube",
-                    help="detector to use: cube (rectangle, default), socket (HoughCircles), hole (dark hole)")
+                    help="detector to use: cube (white cube centroid)")
     ap.add_argument("--debug", action="store_true",
                     help="start with debug overlay enabled")
     return ap

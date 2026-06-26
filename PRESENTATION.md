@@ -9,23 +9,36 @@ depth model — intensity thresholds, contours, and force.
 
 ## 1. OpenCV socket detection (`lib/hole_detect.py`)
 
-An overhead Logitech C920 looks straight down at the workspace. There are three
-interchangeable detectors (all pure numpy + OpenCV, host-testable, no ROS), each
-returning a list of `Hole(u, v, radius_px, score)` in pixel coordinates, best
-first. The live default is the **white-cube** detector — most robust to the
-overexposed white-on-white reality.
+An overhead Logitech C920 looks straight down at the workspace. A single
+detector — `detect_white_cubes` (`lib/hole_detect.py`, pure numpy + OpenCV,
+host-testable, no ROS) — returns a list of `Hole(u, v, radius_px, score)` in
+pixel coordinates, best first.
 
-| Detector | Target | Method |
-|---|---|---|
-| `detect_white_cubes` *(default)* | Socket = bright white cube on a dark mat; returns its **centroid** | Adaptive brightness threshold → morphological close/open → contours → keep filled, ~square blobs by **rotated** min-area-rect aspect/extent (rotation-invariant) → centroid via image moments. Area-sorted, largest first. |
-| `detect_sockets` | The bright recessed **bore** on the cube | `cv2.HoughCircles` for bright circles → keep ones that are central (ROI), bright inside, show **rim-shadow contrast** (rejects a flat decoy cube), and sit on a **dark surround** (rejects the white arm). |
-| `detect_holes` *(legacy)* | A **dark** round hole on a light socket | Grayscale → threshold dark pixels → morphological open → external contours → filter by area, enclosing-circle radius, and **circularity** `4πA/P²`. |
+**`detect_white_cubes`** — the socket is a small bright **white cube** on a dark
+mat; we detect that square and return its **centroid** (the bore sits ~centred on
+the cube, so the centroid is a stable proxy for it, and it stays robust when the
+white-on-white bore overexposes to flat white).
 
-**Why classical works here:** the hole stays dark even when the white body
-overexposes (intensity threshold is robust); the gray grooved table texture is
-not circular (circularity/shape filter rejects it); the bore's rim shadow gives
-internal contrast that a flat decoy lacks; and the white cube is the only large
-filled square on a dark mat.
+Pipeline:
+
+1. Grayscale + median blur.
+2. **Adaptive brightness threshold** `max(bright_floor, pctl(gray, 99.5) − drop)`
+   → binary white mask (adapts to exposure, stays above the carpet).
+3. Morphological **close then open** to fuse the cube and drop speckle.
+4. External contours.
+5. Keep contours by **area band** (the cube has a bounded apparent size under the
+   fixed camera — the upper cap rejects larger white clutter like boxes/devices),
+   then by **aspect + fill (extent)** measured against the **rotated** min-area
+   rectangle (`cv2.minAreaRect`) so a socket at *any rotation* still reads as a
+   filled ~square (a 45° square fills only ~50% of its axis-aligned bbox).
+6. Centroid via image **moments**; results sorted by contour **area** descending
+   (largest cube first).
+
+**Why classical works here:** the white cube is the only large, filled, roughly
+square bright blob on a dark mat; the rotated-rect shape test rejects the
+elongated arm / cables / edges; and the area cap rejects bigger white clutter.
+It keys on the cube *body*, not the bore, so it cannot tell the socket from an
+identical blank cube — keep only the socket in view.
 
 **Pixel → base frame.** The best detection's `(u, v)` is mapped to a metric
 base-frame point (`lib/pixel_mapping.py`): a calibrated **homography** for the

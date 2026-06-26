@@ -136,6 +136,6 @@ runs unchanged on the host or in the container.
 
 - The mock camera feeds are whatever `c920_*.jpg` / `d405_*.jpg` stills exist in
   `robo67_insertion/captures/` at startup; the detection marker is computed from
-  that still with the real `detect_holes`.
+  that still with the real `detect_white_cubes`.
 - Charts use a fixed force/speed domain (contact 5 N, abort 25 N, speed cap from
   config) so the decision thresholds are always legible.

@@ -44,8 +44,7 @@ def generate_launch_description():
                               description="Also bring up the D405 gripper camera + servo feeds."),
         DeclareLaunchArgument("socket_kind", default_value="cube",
                               description="overhead detector: 'cube' -> detect_white_cubes "
-                              "(white box/socket), 'white' -> detect_sockets (white bore), "
-                              "'dark' -> detect_holes (dark circular hole)."),
+                              "(white cube/socket centroid)."),
 
         # -- overhead C920: device owner + detector (overlay) ---------------
         Node(

@@ -8,9 +8,9 @@ logic is reused from ``hardware_insertion_node`` (no duplicated control logic).
 
 WORKFLOW (matches docs/architecture/diagrams/peg_in_hole_workflow)
 ------------------------------------------------------------------
-1. PERCEIVE (vision) -- grab overhead C920 frame(s), detect the dark socket
-   hole (:func:`~robo67_insertion.lib.hole_detect.detect_holes`), and map the
-   best detection pixel -> robot-base XY through the calibrated homography
+1. PERCEIVE (vision) -- grab overhead C920 frame(s), detect the white socket
+   cube (:func:`~robo67_insertion.lib.hole_detect.detect_white_cubes`), and map
+   the best detection pixel -> robot-base XY through the calibrated homography
    (:class:`~robo67_insertion.lib.pixel_mapping.HomographyMappingAdapter`).
    Several frames are taken and the per-axis MEDIAN base XY is used for
    robustness. The socket-top Z cannot come from a single overhead camera, so
@@ -71,11 +71,7 @@ import numpy as np  # noqa: E402
 # the script (incl. --selftest) imports fine on a host without ROS. rclpy is
 # only pulled in lazily inside hardware_insertion_node.run_ros / the live grab.
 from robo67_insertion.lib.hole_detect import (  # noqa: E402
-    HoleParams,
     WhiteCubeParams,
-    WhiteSocketParams,
-    detect_holes,
-    detect_sockets,
     detect_white_cubes,
 )
 from robo67_insertion.lib.pixel_mapping import (  # noqa: E402
@@ -97,25 +93,13 @@ DEFAULT_CONFIG = os.path.join(_PKG_ROOT, "config", "robo67.yaml")
 # ---------------------------------------------------------------------------
 
 def build_detector(args):
-    """Return a callable ``img -> list[Hole]`` for the chosen detector.
+    """Return a callable ``img -> list[Hole]`` for the socket detector.
 
-    ``cube`` (default) detects the white cube CENTROID
-    (:func:`detect_white_cubes`) -- robust to overexposure and the feature the
-    socket-proxy homography is calibrated against (keep only the socket in view).
-    ``white`` detects the bore (:func:`detect_sockets`); ``dark`` is the legacy
-    dark-hole detector (:func:`detect_holes`, tunable via --dark-max etc).
+    Detects the white cube CENTROID (:func:`detect_white_cubes`) -- robust to
+    overexposure and the feature the socket-proxy homography is calibrated
+    against (keep only the socket in view).
     """
-    if args.detector == "cube":
-        return lambda img: detect_white_cubes(img, WhiteCubeParams())
-    if args.detector == "white":
-        return lambda img: detect_sockets(img, WhiteSocketParams())
-    params = HoleParams(
-        min_radius_px=args.min_radius,
-        max_radius_px=args.max_radius,
-        dark_max_value=args.dark_max,
-        min_circularity=args.min_circularity,
-    )
-    return lambda img: detect_holes(img, params)
+    return lambda img: detect_white_cubes(img, WhiteCubeParams())
 
 
 def _grab_frames_topic(args):
@@ -275,6 +259,20 @@ def build_insertion_args(args, socket_xyz):
     ns.gripper_open_width = args.gripper_open_width
     ns.gripper_speed = args.gripper_speed
     ns.retract_after = args.retract_after
+
+    # force-guided (admittance) search/seat (ADR-0002); off unless --force-mode.
+    ns.force_mode = args.force_mode
+    ns.search_press = args.search_press
+    ns.k_adm = args.k_adm
+    ns.adm_v_cap = args.adm_v_cap
+    ns.adm_max_force = args.adm_max_force
+    ns.ramp_s = args.ramp_s
+    ns.fz_filter_alpha = args.fz_filter_alpha
+    ns.slacken_frac = args.slacken_frac
+    ns.confirm_drop = args.confirm_drop
+    ns.confirm_window = args.confirm_window
+    ns.no_spiral_freeze = args.no_spiral_freeze
+    ns.settle_s = args.settle_s
     return ns
 
 
@@ -305,7 +303,7 @@ def run_live(args):
         return 1
     base_xy, dets = perceive_socket_xy(frames, mapper, build_detector(args))
     if base_xy is None:
-        print(f"ERROR: no socket detected ({args.detector}) in {len(frames)} frame(s) "
+        print(f"ERROR: no socket detected (cube) in {len(frames)} frame(s) "
               "-- refusing to move.", file=sys.stderr)
         return 1
 
@@ -420,9 +418,6 @@ def build_parser():
     ap.add_argument("--c920-device", type=str, default=None,
                     help="overhead C920 device: a by-id symlink/path or a bare "
                          "/dev/video index (default: from config; used only by --source device)")
-    ap.add_argument("--detector", choices=["cube", "white", "dark"], default="cube",
-                    help="cube = white cube centroid (default; matches the socket-proxy "
-                         "calibration); white = bore detector; dark = legacy dark-hole")
     ap.add_argument("--exposure", type=int, default=100,
                     help="lock C920 manual exposure (~40-120) so the white socket "
                          "doesn't overexpose; the live grab passes this through")
@@ -430,13 +425,6 @@ def build_parser():
                     help="number of live frames to fuse (per-axis median)")
     ap.add_argument("--socket-top-z", type=float, default=None,
                     help="taught socket-top Z in base frame (m); REQUIRED for a live/dry run")
-
-    # dark-hole detection tuning (used only when --detector dark; match HoleParams)
-    ap.add_argument("--dark-max", type=int, default=HoleParams.dark_max_value,
-                    help="pixels darker than this are hole candidates")
-    ap.add_argument("--min-circularity", type=float, default=HoleParams.min_circularity)
-    ap.add_argument("--min-radius", type=float, default=HoleParams.min_radius_px)
-    ap.add_argument("--max-radius", type=float, default=HoleParams.max_radius_px)
 
     # insertion / safety (forwarded to hardware_insertion_node; defaults mirror it)
     ap.add_argument("--dry-run", action="store_true",
@@ -482,6 +470,24 @@ def build_parser():
     ap.add_argument("--gripper-open-width", type=float, default=0.08)
     ap.add_argument("--gripper-speed", type=float, default=0.1)
     ap.add_argument("--retract-after", type=float, default=0.06)
+
+    # force-guided (admittance) search/seat -- forwarded to hardware_insertion_node
+    # (ADR-0002). Off by default = the current verified fixed-equilibrium behavior.
+    ap.add_argument("--force-mode", action="store_true",
+                    help="regulate a constant gentle axial press (admittance) + detect "
+                         "insertion from the force-slacken (see ADR-0002)")
+    ap.add_argument("--search-press", type=float, default=5.0,
+                    help="F* press-force target (N) in force mode")
+    ap.add_argument("--k-adm", type=float, default=0.0008, help="admittance gain (m/s per N)")
+    ap.add_argument("--adm-v-cap", type=float, default=0.01, help="axial equilibrium speed cap (m/s)")
+    ap.add_argument("--adm-max-force", type=float, default=12.0, help="soft clamp on F* (N)")
+    ap.add_argument("--ramp-s", type=float, default=0.5)
+    ap.add_argument("--fz-filter-alpha", type=float, default=0.2)
+    ap.add_argument("--slacken-frac", type=float, default=0.4)
+    ap.add_argument("--confirm-drop", type=float, default=0.003)
+    ap.add_argument("--confirm-window", type=float, default=1.0)
+    ap.add_argument("--no-spiral-freeze", action="store_true")
+    ap.add_argument("--settle-s", type=float, default=0.4)
     return ap
 
 

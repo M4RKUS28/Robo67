@@ -2,7 +2,7 @@
 """D405 eye-in-hand visual-servoing node (milestone B+ refinement).
 
 When the EE is roughly above the socket (from the C920 coarse pose), this node
-detects the hole in the D405 image and computes a base-frame XY correction
+detects the white socket cube in the D405 image and computes a base-frame XY correction
 through the pixel-to-base mapping seam
 (:class:`~robo67_insertion.lib.pixel_mapping.PinholeMappingAdapter`, which
 composes the pinhole IBVS model; tool is vertical, so the D405 image axes map to
@@ -27,7 +27,7 @@ from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import Float64MultiArray
 
 from robo67_insertion.config_schema import load_config
-from robo67_insertion.lib.hole_detect import HoleParams, detect_holes
+from robo67_insertion.lib.hole_detect import WhiteCubeParams, detect_white_cubes
 from robo67_insertion.lib.image_overlay import decode_jpeg, draw_servo_overlay, encode_jpeg
 from robo67_insertion.lib.pixel_mapping import (
     MappingContext,
@@ -73,7 +73,7 @@ class D405Servo(Node):
                             or self.cfg.topics.cam_gripper_raw)
         self.overlay_topic = (self.get_parameter("overlay_topic").value
                               or self.cfg.topics.cam_gripper_overlay)
-        self.params = HoleParams()
+        self.params = WhiteCubeParams()
         self.mapper = PinholeMappingAdapter()
         self._last_proc = 0.0
 
@@ -123,7 +123,7 @@ class D405Servo(Node):
 
     def _process(self, img):
         h, w = img.shape[:2]
-        holes = detect_holes(img, self.params)
+        holes = detect_white_cubes(img, self.params)
         servo_dxy = None
         if holes:
             hole = holes[0]
