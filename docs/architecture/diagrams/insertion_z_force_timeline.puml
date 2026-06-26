@@ -1,0 +1,122 @@
+@startuml insertion_z_force_timeline
+' ===========================================================================
+' Robo67 -- Peg-in-Hole: z-HOEHE & KRAFT ueber die Phasen (Timing-Diagramm)
+' Fokus: WANN faehrt der Arm aktiv nach unten, WANN haelt er die Hoehe,
+'        und wie entsteht dabei die Kontaktkraft Fz.
+'
+' Quellen (genau diese Dateien implementieren das Verhalten):
+'   lib/insertion_intent.py            -> Phasen-/Uebergangslogik (contact_z, drop)
+'   lib/command_path_adapters.py       -> ImpedanceCommandPathAdapter: z_cmd je Phase
+'   lib/contact_lifecycle.py + wrench  -> Fz-Baseline (EMA nur frei), Kontakt-Test
+'   nodes/hardware_insertion_node.py   -> Loop, release-on-insert, Safety-Envelope
+'
+' Konvention: z ist OBEN im Roboter-Basisframe -> "runter" = z faellt.
+' z_cmd = vom Adapter kommandierte Gleichgewichts-(Soll-)Hoehe des weichen
+'         Cartesian-Impedanzreglers.  z_ee = gemessene Ist-Hoehe des EE.
+' Kraft-Gesetz (weiche Impedanz):  Fz  ~  pos_stiff * (z_ee - z_cmd)
+'         => fuer Kraft F noetiger "Gap":  (z_ee - z_cmd) = F / pos_stiff
+' ===========================================================================
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam shadowing false
+skinparam defaultFontName "Inter, Helvetica, Arial, sans-serif"
+skinparam defaultFontSize 12
+skinparam ArrowColor #18181B
+
+title Robo67 — Peg-in-Hole: z-Höhe & Kraft pro Phase (aktiv runter / halten / hoch)
+
+concise "Phase" as PH
+concise "z-Bewegung" as MV
+concise "z_cmd  (Equilibrium-Sollhöhe)" as ZC
+concise "z_ee  (Ist-Höhe EE)" as ZE
+concise "Fz = |Fz − Baseline|" as FZ
+
+@0
+PH is "MOVE_ABOVE"
+MV is "XY-Anflug (frei)"
+ZC is "Socket +5cm (Standoff)"
+ZE is "über Socket"
+FZ is "≈ Baseline (frei)"
+
+@12
+PH is "DESCEND_TO_CONTACT"
+MV is "AKTIV RUNTER"
+ZC is "Socket −5cm  (tief)"
+ZE is "sinkt"
+FZ is "≈ Baseline"
+
+@40
+ZE is "= Socket-Top"
+FZ is "↑ steigt"
+
+@56
+PH is "SEARCH_SPIRAL"
+MV is "HÖHE HALTEN + XY-Spirale"
+ZC is "contact_z − press_gap"
+ZE is "hält @ Kontaktebene"
+FZ is "≥ contact_fz → KONTAKT"
+
+@72
+FZ is "≈ press_force (Dauerpress)"
+
+@108
+PH is "PUSH_INSERT"
+MV is "DROP → einführen"
+ZC is "contact_z − insert_gap"
+ZE is "fällt in die Bohrung"
+FZ is "Einbruch (Peg frei)"
+
+@124
+ZE is "sitzt (≈ insert_depth)"
+FZ is "(sim) ↑ insert_press"
+
+@140
+PH is "RETRACT"
+MV is "AKTIV HOCH"
+ZC is "Socket +5cm (Standoff)"
+ZE is "steigt"
+FZ is "≈ 0"
+
+@164
+PH is "DONE"
+MV is "halten"
+ZC is "Standoff"
+ZE is "über Socket"
+FZ is "≈ 0"
+
+@176
+
+highlight 12 to 56 #FFF3C4 : DESCEND – aktiv runter bis Kontakt
+highlight 56 to 108 #DDEBF7 : SPIRAL – Höhe halten, XY suchen
+highlight 108 to 140 #E2E8D9 : PUSH/RELEASE – einführen bzw. Greifer auf
+
+legend bottom
+== Analyse: wann aktiv runter, wann halten ==
+**DESCEND_TO_CONTACT** — *aktiv runter.* Der Adapter kommandiert das Equilibrium **tief** auf
+`socket_top − max_press_depth` (≈ −5 cm). Weil das Ziel unter der Oberfläche liegt, sinkt der
+weiche Arm im Freiraum ungebremst (Schritt ≤ `v_max/rate`) und baut beim Berühren Kraft auf.
+**Stopp-Kriterium:** `|Fz − Baseline| ≥ contact_fz` (Default 4 N) → `contact_z = z_ee` (= Socket-Top).
+Die Fz-Baseline ist eine EMA, die NUR in MOVE_ABOVE/Freiraum mitläuft und ab Kontakt eingefroren wird.
+
+**SEARCH_SPIRAL** — *Höhe halten.* `z_cmd = contact_z − press_gap` mit `press_gap = press_force / pos_stiff`
+(z. B. 18 N / 2000 ⇒ 9 mm). Das Equilibrium liegt nur knapp unter der Kontaktebene → konstanter
+**sanfter Press** (~`press_force`), während die Oberfläche das weitere Absinken blockiert: z bleibt ~konstant.
+Bewegung passiert nur in **XY** (Archimedes-Spirale, Pitch 2.5 mm, bis `spiral_max_radius`).
+**Übergang:** sobald `z_ee < contact_z − drop` (FSM 4 mm bzw. `--insert-drop-trigger` 3 mm) → Peg in der Bohrung.
+
+**PUSH_INSERT** — *aktiv runter (einführen).* `z_cmd = contact_z − insert_gap` (`insert_press/pos_stiff`),
+Ziel `contact_z − insert_depth`. **REAL-Arm:** `--release-on-insert` ersetzt das Pressen — beim z-Drop
+wird der **Greifer geöffnet** (Peg bleibt im Loch) und retracted, weil der Dauerpress sonst den
+Firmware-Kraft-Reflex auslöst und den Bringup crasht.
+
+**RETRACT** — *aktiv hoch* auf Standoff (`socket_top + 5 cm`).
+
+Jeder Sollwert durchläuft zuerst den **Safety-Envelope**: AABB-Clamp (inkl. z-Floor `socket_top − 5 cm`)
+→ Step-Cap `v_max/rate` (Anker = letztes Kommando) → Force-Abort (Fz/Moment-Caps).
+
+**`--force-mode` (ADR-0002):** in SEARCH/PUSH wird `z_cmd` NICHT fix gehalten, sondern als
+Admittanz geregelt — zu wenig Kraft ⇒ aktiv runter (Peg reinschieben), zu viel Kraft ⇒ Equilibrium
+wieder hoch (Kraft reduzieren); Erkennung über Kraft-Einbruch + bestätigtes Absinken.
+endlegend
+
+@enduml
