@@ -45,6 +45,7 @@ from robo67_insertion.lib.pixel_mapping import (
     PixelObservation,
 )
 from robo67_insertion.nodes.socket_detector_node import device_path, grab_frame_gst
+from robo67_insertion.ros_qos import camera_qos
 
 
 def _default_config_path() -> str:
@@ -98,12 +99,14 @@ class BoxDetector(Node):
 
         self.pub_pose = self.create_publisher(PoseStamped, self.cfg.topics.box_pose, 10)
         self.pub_det = self.create_publisher(Float64MultiArray, self.cfg.topics.box_detection, 10)
-        self.pub_overlay = self.create_publisher(CompressedImage, self.overlay_topic, 5)
+        self.pub_overlay = self.create_publisher(CompressedImage, self.overlay_topic, camera_qos())
 
         self.rate = max(0.2, float(self.get_parameter("rate_hz").value))
         if self.source == "topic":
+            # SUBSCRIBE to the camera_publisher feed with the matching BEST_EFFORT
+            # camera QoS (a RELIABLE subscriber gets NO frames from it).
             self.sub_img = self.create_subscription(
-                CompressedImage, self.image_topic, self._on_image, 5)
+                CompressedImage, self.image_topic, self._on_image, camera_qos())
             src = f"topic {self.image_topic}"
         else:
             self.timer = self.create_timer(1.0 / self.rate, self._tick)
